@@ -1,0 +1,24 @@
+﻿# Excel Explorer Output Templates
+# Define formats and templates for different output types
+
+html_report:
+  template_name: "comprehensive_report"
+  include_navigation: true
+  include_charts: true
+  color_scheme: "professional"
+
+json_output:
+  pretty_print: true
+  include_metadata: true
+  compress_large_outputs: false
+
+markdown_summary:
+  include_toc: true
+  max_detail_level: 3
+  include_code_blocks: true
+
+executive_summary:
+  max_length_words: 500
+  include_risk_assessment: true
+  include_complexity_score: true
+  highlight_key_findings: true

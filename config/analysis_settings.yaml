@@ -1,0 +1,53 @@
+﻿# Excel Explorer Analysis Settings
+# Module-specific parameters and thresholds
+
+health_checker:
+  max_file_size_mb: 500
+  corruption_checks: true
+  macro_scan: true
+  timeout_seconds: 30
+
+structure_mapper:
+  include_hidden_sheets: true
+  scan_protection_levels: true
+  map_external_references: true
+  header_detection_threshold: 0.8
+
+data_profiler:
+  sample_size_limit: 10000
+  statistical_analysis: true
+  data_quality_checks: true
+  header_detection_threshold: 0.8
+
+formula_analyzer:
+  max_dependency_depth: 10
+  circular_reference_detection: true
+  external_reference_validation: true
+  complexity_scoring: true
+
+visual_cataloger:
+  extract_chart_data: true
+  image_metadata_extraction: true
+  positioning_analysis: true
+
+connection_inspector:
+  test_connection_health: false
+  security_assessment: true
+  timeout_seconds: 15
+
+pivot_intelligence:
+  analyze_pivot_cache: true
+  extract_calculated_fields: true
+  map_slicer_connections: true
+
+output:
+  generate_html_report: true
+  generate_json_output: true
+  generate_markdown_summary: true
+  include_executive_summary: true
+
+performance:
+  max_memory_multiplier: 3
+  max_processing_seconds_small: 30
+  max_processing_seconds_medium: 120
+  max_processing_seconds_large: 300
