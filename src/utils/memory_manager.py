@@ -10,6 +10,7 @@ import logging
 from typing import Dict, Optional, Callable, Any
 from collections import OrderedDict, defaultdict
 from pathlib import Path
+import gc
 
 
 class MemoryManager:
@@ -213,37 +214,184 @@ class MemoryManager:
             usage['cpu_percent'] > 90 or   # High CPU usage
             self.check_memory_pressure()
         )
+    
+    def get_optimal_chunk_size(self, base_chunk_size: int, file_size_mb: float) -> int:
+        """Calculate optimal chunk size based on current memory conditions
+        
+        Args:
+            base_chunk_size: Default chunk size
+            file_size_mb: Size of file being processed
+            
+        Returns:
+            Optimized chunk size
+        """
+        usage = self.get_current_usage()
+        
+        # Reduce chunk size under memory pressure
+        if usage['usage_ratio'] > 0.8:
+            multiplier = 0.5
+        elif usage['usage_ratio'] > 0.6:
+            multiplier = 0.7
+        else:
+            multiplier = 1.0
+        
+        # Adjust for file size
+        if file_size_mb > 100:
+            multiplier *= 0.8
+        elif file_size_mb > 200:
+            multiplier *= 0.6
+        
+        optimal_size = int(base_chunk_size * multiplier)
+        return max(100, optimal_size)  # Minimum chunk size
+    
+    def trigger_garbage_collection(self) -> bool:
+        """Trigger garbage collection if memory pressure detected
+        
+        Returns:
+            bool: True if GC was triggered
+        """
+        import gc
+        
+        if self.check_memory_pressure():
+            logging.info("Triggering garbage collection due to memory pressure")
+            collected = gc.collect()
+            logging.debug(f"Garbage collection freed {collected} objects")
+            return True
+        return False
+    
+    def adaptive_cache_cleanup(self) -> None:
+        """Perform adaptive cache cleanup based on memory pressure"""
+        usage = self.get_current_usage()
+        
+        if usage['usage_ratio'] > 0.9:
+            # Aggressive cleanup
+            self.clear_cache()
+            self.trigger_garbage_collection()
+        elif usage['usage_ratio'] > 0.8:
+            # Moderate cleanup - remove 50% of cache
+            with self._lock:
+                items_to_remove = len(self._cache) // 2
+                for _ in range(items_to_remove):
+                    if self._cache:
+                        self._evict_lru_item()
+        elif usage['usage_ratio'] > 0.7:
+            # Light cleanup - remove oldest 25% of cache
+            with self._lock:
+                items_to_remove = len(self._cache) // 4
+                for _ in range(items_to_remove):
+                    if self._cache:
+                        self._evict_lru_item()
 
 
 class ResourceMonitor:
-    """Context manager for automatic resource tracking."""
+    """Context manager for automatic resource tracking with adaptive management."""
     
     def __init__(self, memory_manager: MemoryManager, module_name: str, file_size_mb: float = 0):
         self.memory_manager = memory_manager
         self.module_name = module_name
         self.file_size_mb = file_size_mb
         self.stats = {}
+        self.initial_usage = None
+        self.cleanup_triggered = False
 
     def __enter__(self):
         self.memory_manager.track_module_start(self.module_name, self.file_size_mb)
+        self.initial_usage = self.memory_manager.get_current_usage()
+        
+        # Proactive cleanup if starting with high memory usage
+        if self.initial_usage['usage_ratio'] > 0.7:
+            self.memory_manager.adaptive_cache_cleanup()
+            
         return self
+    
+    def check_memory_during_processing(self) -> bool:
+        """Check memory status during processing and trigger cleanup if needed
+        
+        Returns:
+            bool: True if processing should continue, False if should abort
+        """
+        current_usage = self.memory_manager.get_current_usage()
+        
+        if current_usage['usage_ratio'] > 0.95:
+            logging.warning(f"Critical memory usage in {self.module_name}: {current_usage['usage_ratio']:.1%}")
+            return False
+        elif current_usage['usage_ratio'] > 0.85 and not self.cleanup_triggered:
+            logging.info(f"High memory usage in {self.module_name}, triggering cleanup")
+            self.memory_manager.adaptive_cache_cleanup()
+            self.cleanup_triggered = True
+            
+        return True
+    
+    def get_recommended_chunk_size(self, default_size: int) -> int:
+        """Get recommended chunk size based on current memory conditions"""
+        return self.memory_manager.get_optimal_chunk_size(default_size, self.file_size_mb)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stats = self.memory_manager.track_module_end(self.module_name)
+        final_usage = self.memory_manager.get_current_usage()
         
-        # Log completion
+        # Log completion with memory efficiency metrics
         if exc_type is None:
+            efficiency_ratio = self.stats.get('memory_delta_mb', 0) / max(1, self.file_size_mb)
             logging.info(
                 f"Module {self.module_name} completed: "
                 f"{self.stats.get('duration_seconds', 0):.1f}s, "
-                f"{self.stats.get('memory_delta_mb', 0):+.1f}MB"
+                f"{self.stats.get('memory_delta_mb', 0):+.1f}MB "
+                f"(efficiency: {efficiency_ratio:.1f}x file size)"
             )
         else:
             logging.error(f"Module {self.module_name} failed: {exc_val}")
+            
+        # Final cleanup if module used significant memory
+        if self.stats.get('memory_delta_mb', 0) > 100:  # >100MB delta
+            self.memory_manager.adaptive_cache_cleanup()
 
 
 # Global instance for easy access
 _global_memory_manager: Optional[MemoryManager] = None
+
+
+def configure_chunked_processing_defaults(file_size_mb: float) -> Dict[str, Any]:
+    """Configure default chunked processing parameters based on file size
+    
+    Args:
+        file_size_mb: Size of file to be processed
+        
+    Returns:
+        Dict with recommended processing parameters
+    """
+    memory_manager = get_memory_manager()
+    current_usage = memory_manager.get_current_usage()
+    
+    # Base parameters
+    if file_size_mb < 10:
+        base_chunk_size = 10000
+        strategy = "row_based"
+        max_memory_mb = 256
+    elif file_size_mb < 50:
+        base_chunk_size = 5000
+        strategy = "row_based"
+        max_memory_mb = 512
+    elif file_size_mb < 100:
+        base_chunk_size = 2000
+        strategy = "adaptive"
+        max_memory_mb = 1024
+    else:
+        base_chunk_size = 1000
+        strategy = "adaptive"
+        max_memory_mb = 2048
+    
+    # Adjust for current memory pressure
+    optimal_chunk_size = memory_manager.get_optimal_chunk_size(base_chunk_size, file_size_mb)
+    
+    return {
+        'chunk_size_rows': optimal_chunk_size,
+        'strategy': strategy,
+        'max_memory_mb': min(max_memory_mb, memory_manager.max_memory_mb // 2),
+        'enable_progress_tracking': file_size_mb > 20,
+        'intermediate_save': file_size_mb > 200,
+        'memory_pressure_level': current_usage['usage_ratio']
+    }
 
 def get_memory_manager() -> MemoryManager:
     """Get or create global memory manager instance."""
@@ -256,4 +404,13 @@ def initialize_memory_manager(max_memory_mb: int = 4096, warning_threshold: floa
     """Initialize global memory manager with custom settings."""
     global _global_memory_manager
     _global_memory_manager = MemoryManager(max_memory_mb, warning_threshold)
+    
+    # Log initialization with system context
+    import psutil
+    system_memory_gb = psutil.virtual_memory().total / 1_073_741_824
+    logging.info(
+        f"Memory manager initialized: {max_memory_mb}MB limit "
+        f"({max_memory_mb/1024:.1f}GB) on {system_memory_gb:.1f}GB system"
+    )
+    
     return _global_memory_manager

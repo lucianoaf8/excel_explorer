@@ -1,5 +1,13 @@
-# Excel Explorer Analysis Settings
-# Module-specific parameters and thresholds
+# Excel Explorer Analysis Settings - Phase 2 Enhanced Configuration
+# Module-specific parameters and thresholds for comprehensive data analysis engine
+# 
+# Phase 2 Enhancements:
+# - Chunked data processing for memory efficiency
+# - Streaming data analysis with progressive insights
+# - Advanced data validation framework
+# - Enhanced data profiling with 95%+ accuracy
+# - Memory management and performance optimization
+# - Comprehensive testing and quality assurance
 
 # Global analysis configuration
 analysis:
@@ -30,12 +38,221 @@ structure_mapper:
   max_cell_checks: 1000
   max_cell_sample: 10000
 
+# Phase 2: Enhanced Data Profiler Configuration
 data_profiler:
   enabled: true
   sample_size_limit: 10000
   statistical_analysis: true
   data_quality_checks: true
   header_detection_threshold: 0.8
+  
+  # Chunked Processing Configuration
+  chunked_processing:
+    enabled: true
+    chunk_size_rows: 10000
+    chunk_size_columns: 100
+    max_memory_mb: 512
+    strategy: "adaptive"  # Options: row_based, column_based, cell_based, adaptive
+    enable_progress_tracking: true
+    intermediate_save: false
+    intermediate_save_threshold_mb: 200
+  
+  # Enhanced Data Region Detection
+  region_detection:
+    enable_enhanced_detection: true
+    merged_cell_handling: true
+    empty_region_classification: true
+    data_vs_formatting_distinction: true
+    header_footer_detection: true
+    continuity_analysis: true
+    minimum_region_size: 4
+    flood_fill_enabled: true
+  
+  # Advanced Type Classification Engine
+  type_inference:
+    enable_advanced_inference: true
+    accuracy_requirement: 0.95
+    statistical_sampling: true
+    sample_size_limit: 1000
+    confidence_threshold: 0.6
+    pattern_matching_enabled: true
+    business_patterns_enabled: true
+    mixed_type_detection: true
+    fallback_classification: true
+  
+  # Enhanced Quality Metrics
+  quality_metrics:
+    enable_comprehensive_metrics: true
+    data_density_calculation: true
+    completeness_scoring: true
+    pattern_consistency_analysis: true
+    outlier_detection: true
+    duplicate_detection: true
+    cross_column_analysis: true
+    quality_scoring_weights:
+      completeness: 0.4
+      uniqueness: 0.3
+      consistency: 0.3
+  
+  # Smart Header Detection
+  header_detection:
+    enable_smart_detection: true
+    confidence_threshold: 0.8
+    multi_row_support: true
+    pattern_validation: true
+    statistical_analysis: true
+    header_type_classification: true
+    max_header_candidates: 3
+  
+  # Memory Management Integration
+  memory_management:
+    enable_advanced_management: true
+    memory_pressure_detection: true
+    warning_threshold: 0.8
+    critical_threshold: 0.9
+    auto_garbage_collection: true
+    adaptive_chunk_sizing: true
+    cache_eviction_strategy: "lru"  # Options: lru, fifo, size_based
+    early_warning_system: true
+  
+  # Performance Optimization
+  performance:
+    enable_optimization: true
+    processing_time_estimation: true
+    sampling_strategies: true
+    progressive_analysis: true
+    max_depth_levels: 3
+    performance_monitoring: true
+    resource_usage_optimization: true
+  
+  # Enhanced Caching System
+  caching:
+    enable_enhanced_caching: true
+    file_level_caching: true
+    modification_timestamp_check: true
+    content_hash_validation: true
+    incremental_analysis: true
+    query_result_caching: true
+    precomputed_indexes: true
+    compression_enabled: true
+    cache_invalidation_logic: true
+
+# Phase 2: Streaming Data Processing Configuration
+streaming_processor:
+  enabled: true
+  
+  # Streaming Strategy Configuration
+  strategy: "row_stream"  # Options: row_stream, column_stream, cell_stream, progressive_analysis
+  buffer_size: 1000
+  max_memory_mb: 256
+  enable_persistence: false
+  persistence_path: null
+  progressive_depth: 3
+  yield_frequency: 100
+  
+  # Row-based Streaming
+  row_streaming:
+    enabled: true
+    batch_processing: true
+    memory_efficient_extraction: true
+  
+  # Column-based Streaming
+  column_streaming:
+    enabled: true
+    wide_sheet_support: true
+    column_wise_processing: true
+  
+  # Cell-level Streaming
+  cell_streaming:
+    enabled: true
+    formula_heavy_workbook_support: true
+    cell_by_cell_processing: true
+    frequent_memory_checks: true
+  
+  # Progressive Analysis
+  progressive_analysis:
+    enabled: true
+    configurable_depth: true
+    sample_size_progression: [100, 500, 1000, 5000]
+    strategic_sampling: true
+    incremental_insights: true
+  
+  # Intermediate Result Persistence
+  persistence:
+    enable_large_file_persistence: true
+    batch_size_threshold: 1000
+    json_serialization: true
+    numpy_type_conversion: true
+    automatic_cleanup: true
+
+# Phase 2: Data Validation Framework Configuration
+data_validator:
+  enabled: true
+  
+  # Validation Levels
+  validation_levels:
+    info: true
+    warning: true
+    error: true
+    critical: true
+  
+  # Validation Types
+  validation_types:
+    data_type: true
+    range: true
+    format: true
+    business_rule: true
+    consistency: true
+    completeness: true
+    uniqueness: true
+    relationship: true
+  
+  # Completeness Validation
+  completeness:
+    enable_validation: true
+    threshold: 0.95
+    required_columns: []
+    overall_completeness_check: true
+    column_specific_checks: true
+  
+  # Data Type Validation
+  data_types:
+    enable_validation: true
+    consistency_threshold: 0.9
+    type_mapping_validation: true
+    mixed_type_detection: true
+  
+  # Business Rules
+  business_rules:
+    enable_validation: true
+    range_checks: true
+    format_checks: true
+    relationship_checks: true
+    expression_rules: true
+  
+  # Data Consistency
+  consistency:
+    enable_validation: true
+    pattern_consistency_threshold: 0.8
+    cross_column_validation: true
+    temporal_consistency: true
+    summation_consistency: true
+  
+  # Anomaly Detection
+  anomaly_detection:
+    enabled: true
+    sensitivity: 0.95
+    statistical_outlier_detection: true
+    text_anomaly_detection: true
+    iqr_method: true
+    z_score_method: true
+    combined_methods: true
+  
+  # Custom Validators
+  custom_validators:
+    enabled: true
+    allow_custom_functions: true
+    validation_rule_engine: true
 
 formula_analyzer:
   enabled: true
@@ -75,8 +292,111 @@ output:
   generate_markdown_summary: true
   include_executive_summary: true
 
+# Phase 2: Enhanced Performance Configuration
 performance:
+  # Legacy performance settings
   max_memory_multiplier: 3
   max_processing_seconds_small: 30
   max_processing_seconds_medium: 120
   max_processing_seconds_large: 300
+  
+  # Phase 2 Performance Enhancements
+  phase2_enhancements:
+    enabled: true
+    
+    # Memory Efficiency Targets
+    memory_efficiency:
+      target_memory_multiplier: 4.0  # Max 4x file size
+      warning_memory_multiplier: 3.0
+      enable_memory_monitoring: true
+      memory_cleanup_frequency: 1000  # Every N operations
+      adaptive_memory_management: true
+    
+    # Processing Speed Targets
+    speed_targets:
+      target_seconds_per_100mb: 300  # 5 minutes per 100MB
+      warning_seconds_per_100mb: 180  # 3 minutes per 100MB
+      enable_speed_monitoring: true
+      performance_regression_detection: true
+    
+    # Parallel Processing (Future Phase)
+    parallel_processing:
+      enabled: false  # Disabled for Phase 2
+      max_workers: 4
+      chunk_parallel_processing: false
+      module_parallel_execution: false
+    
+    # Resource Optimization
+    resource_optimization:
+      enabled: true
+      cpu_usage_monitoring: true
+      disk_usage_monitoring: true
+      network_usage_monitoring: false
+      automatic_throttling: true
+      resource_utilization_reporting: true
+    
+    # Batch Processing
+    batch_processing:
+      enabled: true
+      queue_system: false  # Future enhancement
+      priority_handling: false  # Future enhancement
+      batch_progress_tracking: true
+      batch_result_aggregation: true
+      batch_error_handling: true
+    
+    # Performance Baselines
+    baselines:
+      establish_baselines: true
+      baseline_file_sizes: [1, 10, 50, 100]  # MB
+      performance_regression_threshold: 1.2  # 20% slowdown threshold
+      memory_regression_threshold: 1.3  # 30% memory increase threshold
+
+# Phase 2: Integration and Testing Configuration
+testing:
+  phase2_testing:
+    enabled: true
+    
+    # Integration Testing
+    integration_tests:
+      enabled: true
+      test_chunked_processing: true
+      test_streaming_processing: true
+      test_data_validation: true
+      test_enhanced_profiling: true
+      test_memory_efficiency: true
+      test_performance_targets: true
+    
+    # Performance Testing
+    performance_tests:
+      enabled: true
+      small_file_target_seconds: 5
+      medium_file_target_seconds: 15
+      large_file_target_seconds: 60
+      memory_efficiency_target: 4.0
+    
+    # Edge Case Testing
+    edge_case_tests:
+      enabled: true
+      test_corrupted_files: true
+      test_empty_files: true
+      test_large_files: true
+      test_unusual_structures: true
+      test_formula_heavy_files: true
+    
+    # Quality Assurance
+    quality_assurance:
+      enabled: true
+      accuracy_validation: true
+      completeness_validation: true
+      consistency_validation: true
+      error_rate_threshold: 0.01  # 1% max error rate
+    
+    # Test Data Generation
+    test_data:
+      generate_test_files: true
+      small_file_rows: 100
+      medium_file_rows: 5000
+      large_file_rows: 50000
+      test_file_columns: 20
+      include_quality_issues: true
+      include_formulas: true
