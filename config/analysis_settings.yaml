@@ -1,44 +1,73 @@
-﻿# Excel Explorer Analysis Settings
+# Excel Explorer Analysis Settings
 # Module-specific parameters and thresholds
 
+# Global analysis configuration
+analysis:
+  max_memory_mb: 4096
+  warning_threshold: 0.8
+  enable_caching: true
+  chunk_size_rows: 10000
+  max_formulas_analyze: 50000
+  include_charts: true
+  include_pivots: true
+  include_connections: true
+  deep_analysis: false
+  parallel_processing: false
+
 health_checker:
+  enabled: true
   max_file_size_mb: 500
   corruption_checks: true
   macro_scan: true
   timeout_seconds: 30
 
 structure_mapper:
+  enabled: true
   include_hidden_sheets: true
   scan_protection_levels: true
   map_external_references: true
   header_detection_threshold: 0.8
+  max_cell_checks: 1000
+  max_cell_sample: 10000
 
 data_profiler:
+  enabled: true
   sample_size_limit: 10000
   statistical_analysis: true
   data_quality_checks: true
   header_detection_threshold: 0.8
 
 formula_analyzer:
+  enabled: true
+  max_formulas_analyze: 50000
   max_dependency_depth: 10
   circular_reference_detection: true
   external_reference_validation: true
   complexity_scoring: true
 
 visual_cataloger:
+  enabled: true
   extract_chart_data: true
   image_metadata_extraction: true
   positioning_analysis: true
 
 connection_inspector:
+  enabled: true
   test_connection_health: false
   security_assessment: true
   timeout_seconds: 15
+  max_cell_checks: 1000
 
 pivot_intelligence:
+  enabled: true
   analyze_pivot_cache: true
   extract_calculated_fields: true
   map_slicer_connections: true
+
+doc_synthesizer:
+  enabled: true
+  include_executive_summary: true
+  max_summary_length: 500
 
 output:
   generate_html_report: true
