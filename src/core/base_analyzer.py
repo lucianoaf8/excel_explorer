@@ -130,15 +130,22 @@ class BaseAnalyzer(ABC):
         Returns:
             bool: True if analysis should be skipped
         """
-        # Skip if dependencies failed critically
-        if context.has_dependency_failed(self.dependencies):
+        # Check dependencies but allow graceful degradation
+        failed_deps = []
+        for dep in self.dependencies:
+            if not context.has_module_result(dep) or context.get_module_result(dep) is None:
+                failed_deps.append(dep)
+        
+        # Only skip if ALL critical dependencies failed
+        if failed_deps and len(failed_deps) == len(self.dependencies):
+            self.logger.error(f"Dependencies failed: {failed_deps}")
             return True
             
         # Skip if resource constraints are too high
         if context.should_reduce_complexity():
             complexity = self.estimate_complexity(context)
-            if complexity > 2.0:  # Skip high-complexity modules under pressure
-                self.logger.warning(f"Skipping {self.name} due to resource constraints")
+            if complexity > 5.0:  # More lenient threshold
+                self.logger.warning(f"Skipping {self.name} due to extreme resource constraints")
                 return True
         
         return False

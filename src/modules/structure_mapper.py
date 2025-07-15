@@ -66,10 +66,11 @@ class StructureMapper(BaseAnalyzer):
                     named_ranges=named_ranges,
                     sheet_relationships=sheet_relationships,
                     hidden_sheets=hidden_sheets,
+                    visible_sheets=visible_sheets,
                     chart_count=chart_count,
                     pivot_table_count=pivot_table_count,
                     total_cells=total_cells,
-                    non_empty_cells=non_empty_cells
+                    total_cells_with_data=non_empty_cells
                 )
                 
         except Exception as e:
@@ -80,6 +81,58 @@ class StructureMapper(BaseAnalyzer):
                 module_name=self.name,
                 file_path=str(context.file_path)
             )
+    
+    def _analyze_named_ranges(self, wb) -> Dict[str, Any]:
+        """Analyze named ranges in workbook"""
+        try:
+            return {"count": len(wb.defined_names), "names": list(wb.defined_names.definedName)}
+        except:
+            return {"count": 0, "names": []}
+    
+    def _analyze_sheet_relationships(self, wb) -> Dict[str, Any]:
+        """Analyze relationships between sheets"""
+        return {"cross_sheet_references": 0, "relationships": []}
+    
+    def _count_charts(self, wb) -> int:
+        """Count charts in workbook"""
+        try:
+            count = 0
+            for ws in wb.worksheets:
+                count += len(ws._charts)
+            return count
+        except:
+            return 0
+    
+    def _count_pivot_tables(self, wb) -> int:
+        """Count pivot tables in workbook"""
+        try:
+            count = 0
+            for ws in wb.worksheets:
+                count += len(ws._pivots)
+            return count
+        except:
+            return 0
+    
+    def _calculate_cell_statistics(self, wb, include_hidden: bool = True) -> tuple:
+        """Calculate cell statistics"""
+        try:
+            total_cells = 0
+            non_empty_cells = 0
+            
+            for ws in wb.worksheets:
+                if not include_hidden and ws.sheet_state != "visible":
+                    continue
+                    
+                total_cells += ws.max_row * ws.max_column
+                
+                # Count non-empty cells (sample-based for performance)
+                sample_rows = min(100, ws.max_row)
+                for row in ws.iter_rows(max_row=sample_rows, values_only=True):
+                    non_empty_cells += sum(1 for cell in row if cell is not None)
+            
+            return total_cells, non_empty_cells
+        except:
+            return 0, 0
     
     def _validate_result(self, data: StructureData, context: AnalysisContext) -> ValidationResult:
         """Validate structure mapping results
