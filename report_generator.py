@@ -208,31 +208,69 @@ class ReportGenerator:
         return "".join(sections)
     
     def _generate_sheet_details(self, modules: Dict) -> str:
-        """Generate per-sheet column detail tables"""
+        """Generate detailed per-sheet tables including quality metrics and dependencies."""
         sheet_info = modules.get('data_profiler', {}).get('sheet_analysis', {}) if modules else {}
+        dep_matrix = modules.get('dependency_mapper', {}).get('dependency_matrix', {}) if modules else {}
         if not sheet_info:
             return "<p>No sheet details available.</p>"
+
         sections = []
         for sheet, info in sheet_info.items():
             columns = info.get('columns', [])
             if not columns:
                 continue
+
+            # Build rows for column table
+            row_tpl = (
+                "<tr><td>{letter}</td><td>{header}</td><td>{dtype}</td>"
+                "<td>{nulls}</td><td>{fill}%</td><td>{sample}</td></tr>"
+            )
             rows_html = "".join(
-                f"<tr><td>{col['letter']}</td><td>{col['range']}</td><td>{col['data_type'].title()}</td></tr>"
+                row_tpl.format(
+                    letter=col['letter'],
+                    header=col.get('header', ''),
+                    dtype=col['data_type'].title(),
+                    nulls=col.get('nulls', 0),
+                    fill=int(col.get('fill_rate', 0.0) * 100),
+                    sample=(col.get('sample_values') or [''])[0]
+                )
                 for col in columns
             )
+
+            # Dependencies out of this sheet
+            deps_out = dep_matrix.get(sheet, {})
+            deps_html = ""
+            if deps_out:
+                dep_items = "".join(f"<li>{t} ({c})</li>" for t, c in deps_out.items())
+                deps_html = f"<p><strong>Dependencies:</strong><ul>{dep_items}</ul></p>"
+
             summary_text = (
-                f"{sheet} • Range: {info.get('used_range')} • "
+                f"{sheet} • {info.get('dimensions')} • "
                 f"Data: {info.get('estimated_data_cells', 0):,} • "
-                f"Empty: {info.get('empty_cells', 0):,}"
+                f"Empty: {info.get('empty_cells', 0):,} • "
+                f"Density: {info.get('data_density', 0):.1%}"
             )
+
             section_html = f"""
-            <details>
+            <details class=\"sheet-detail\">
                 <summary>{summary_text}</summary>
                 <table class=\"sheet-table\">
-                    <tr><th>Column</th><th>Range</th><th>Data Type</th></tr>
+                    <tr><th>Col</th><th>Header</th><th>Type</th><th>Nulls</th><th>Fill%</th><th>Sample</th></tr>
                     {rows_html}
                 </table>
+                                <h4>Ranges & Properties</h4>
+                <ul>
+                    <li><strong>Declared Range:</strong> {info.get('boundaries', {}).get('declared_range','')}</li>
+                    <li><strong>True Range:</strong> {info.get('boundaries', {}).get('true_range','')}</li>
+                    <li><strong>Freeze Panes:</strong> {info.get('boundaries', {}).get('freeze_panes','')}</li>
+                    <li><strong>Merged Cells:</strong> {info.get('boundaries', {}).get('merged_cells',0)}</li>
+                    <li><strong>Hyperlinks:</strong> {info.get('boundaries', {}).get('hyperlinks',0)}</li>
+                    <li><strong>Print Area:</strong> {info.get('boundaries', {}).get('print_area','')}</li>
+                    <li><strong>AutoFilter:</strong> {info.get('boundaries', {}).get('auto_filter')}</li>
+                    <li><strong>Protected:</strong> {info.get('sheet_properties', {}).get('protected')}</li>
+                    <li><strong>Visibility:</strong> {info.get('sheet_properties', {}).get('visibility')}</li>
+                </ul>
+                {deps_html}
             </details>
             """
             sections.append(section_html)

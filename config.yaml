@@ -1,10 +1,15 @@
 # Excel Explorer v2.0 Configuration
 
 analysis:
-  max_cells_check: 1000
-  max_formula_check: 1000
-  sample_rows: 100
-  memory_limit_mb: 512
+  max_cells_check: 1000        # legacy – retained
+  max_formula_check: 1000      # maximum cells scanned for formulas
+  sample_rows: 100             # rows sampled per sheet for quick profiling
+  max_sample_rows: 1000        # upper bound when streaming
+  memory_limit_mb: 512         # soft limit; analyzer will fallback if exceeded
+  timeout_per_sheet_seconds: 30
+  enable_cross_sheet_analysis: true
+  enable_data_quality_checks: true
+  detail_level: comprehensive   # basic | standard | comprehensive
 
 output:
   json_enabled: true
