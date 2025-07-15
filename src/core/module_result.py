@@ -216,6 +216,16 @@ class PivotAnalysisData:
     slicers: List[Dict[str, Any]]
     refresh_metadata: Dict[str, Any]
 
+@dataclass
+class DocumentationData:
+    """Documentation synthesizer module result data"""
+    file_overview: Dict[str, Any]
+    executive_summary: str
+    detailed_analysis: Dict[str, Any]
+    recommendations: List[str]
+    ai_navigation_guide: Dict[str, Any]
+    metadata: Dict[str, Any]
+
 
 class ResultCollector:
     """Collects and manages module results throughout analysis pipeline"""

@@ -210,24 +210,24 @@ class ConnectionInspector(BaseAnalyzer):
         db_connections = []
         
         try:
-            # Placeholder for database connection detection
-            # In a full implementation, this would check for:
-            # - ODBC connections
-            # - OLE DB connections
-            # - SQL Server connections
-            # - etc.
-            
-            # For now, just create placeholder structure
-            if hasattr(workbook, 'connections'):
-                for i, conn in enumerate(workbook.connections):
-                    if 'database' in str(conn).lower() or 'sql' in str(conn).lower():
-                        db_info = {
-                            'id': f"db_conn_{i}",
-                            'type': 'database',
-                            'connection_string': str(conn)[:100],  # Truncate for security
-                            'driver': 'unknown'
-                        }
-                        db_connections.append(db_info)
+            # Check worksheet names for database indicators
+            for ws in workbook.worksheets:
+                sheet_name = ws.title.lower()
+                if any(keyword in sheet_name for keyword in ['data', 'import', 'query', 'connection']):
+                    # Sample first few rows for connection strings
+                    for row in ws.iter_rows(max_row=5, values_only=True):
+                        for cell in row:
+                            if cell and isinstance(cell, str):
+                                cell_lower = cell.lower()
+                                if any(keyword in cell_lower for keyword in 
+                                     ['driver=', 'server=', 'database=', 'dsn=', 'connection']):
+                                    db_connections.append({
+                                        'id': f"db_conn_{len(db_connections)}",
+                                        'type': 'database',
+                                        'sheet': ws.title,
+                                        'indicator': cell[:100]
+                                    })
+                                    break
         
         except Exception as e:
             self.logger.warning(f"Error detecting database connections: {e}")
@@ -253,18 +253,17 @@ class ConnectionInspector(BaseAnalyzer):
             # - Web service connections
             # - XML data imports
             
-            # Basic detection by looking for web-like connection strings
-            if hasattr(workbook, 'connections'):
-                for i, conn in enumerate(workbook.connections):
-                    conn_str = str(conn).lower()
-                    if any(keyword in conn_str for keyword in ['http', 'web', 'url', 'xml']):
-                        web_info = {
-                            'id': f"web_query_{i}",
-                            'type': 'web_query',
-                            'url': conn_str[:200],  # Truncate long URLs
-                            'method': 'unknown'
-                        }
-                        web_queries.append(web_info)
+            for ws in workbook.worksheets:
+                for row in ws.iter_rows(max_row=20, values_only=True):
+                    for cell in row:
+                        if cell and isinstance(cell, str):
+                            if any(protocol in cell.lower() for protocol in ['http://', 'https://', 'ftp://']):
+                                web_queries.append({
+                                    'id': f"web_query_{len(web_queries)}",
+                                    'type': 'web_query',
+                                    'sheet': ws.title,
+                                    'url': cell[:200]
+                                })
         
         except Exception as e:
             self.logger.warning(f"Error detecting web queries: {e}")

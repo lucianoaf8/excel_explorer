@@ -18,6 +18,7 @@ from openpyxl.workbook.workbook import Workbook
 
 from ..utils.memory_manager import MemoryManager, get_memory_manager
 from ..utils.error_handler import ExcelAnalysisError, ErrorSeverity
+from .unified_config import UnifiedConfig
 
 
 class AnalysisPhase(Enum):
@@ -167,6 +168,9 @@ class AnalysisContext:
     def __init__(self, file_path: Union[str, Path], config: Optional[AnalysisConfig] = None):
         self.file_path = Path(file_path)
         self.config = config or AnalysisConfig()
+        
+        # Add unified config
+        self.unified_config = UnifiedConfig.from_yaml()
         
         # Core components
         self.memory_manager = get_memory_manager()

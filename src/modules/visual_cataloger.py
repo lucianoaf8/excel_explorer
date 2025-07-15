@@ -255,17 +255,39 @@ class VisualCataloger(BaseAnalyzer):
         shapes = []
         
         try:
-            # Basic shape detection - openpyxl doesn't have direct shape access
-            # This is a placeholder for more sophisticated shape detection
-            if hasattr(worksheet, '_drawings'):
+            # Check for drawing objects
+            if hasattr(worksheet, '_drawings') and worksheet._drawings:
                 for i, drawing in enumerate(worksheet._drawings):
                     shape_info = {
                         'sheet': sheet_name,
-                        'id': f"shape_{i}",
-                        'type': 'drawing',
-                        'description': str(drawing)[:100]  # Truncate long descriptions
+                        'id': f"drawing_{i}",
+                        'type': 'drawing_object',
+                        'description': str(type(drawing).__name__)
                     }
+                  
+                    # Try to get more specific information
+                    if hasattr(drawing, 'anchor'):
+                        shape_info['anchor'] = str(drawing.anchor)[:50]
+                      
                     shapes.append(shape_info)
+                  
+            # Check for text boxes and other shapes by examining cell formatting
+            shape_indicators = 0
+            for row in worksheet.iter_rows(max_row=50):
+                for cell in row:
+                    if cell.value and hasattr(cell, 'fill'):
+                        if (cell.fill and cell.fill.fill_type and 
+                            cell.fill.fill_type != 'none'):
+                            shape_indicators += 1
+                          
+            if shape_indicators > 10:  # Threshold for shape-heavy worksheet
+                shapes.append({
+                    'sheet': sheet_name,
+                    'id': 'formatting_shapes',
+                    'type': 'formatted_cells',
+                    'count': shape_indicators,
+                    'description': f'Detected {shape_indicators} formatted cells indicating shapes'
+                })
         
         except Exception as e:
             self.logger.warning(f"Error cataloging shapes in {sheet_name}: {e}")

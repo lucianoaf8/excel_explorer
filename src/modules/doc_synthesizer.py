@@ -6,11 +6,21 @@ Framework-compatible implementation with basic documentation synthesis.
 from typing import List, Optional, Dict, Any
 import json
 from pathlib import Path
+from dataclasses import dataclass
 
 from ..core.base_analyzer import BaseAnalyzer
 from ..core.analysis_context import AnalysisContext
 from ..core.module_result import ValidationResult, ConfidenceLevel
 from ..utils.error_handler import ExcelAnalysisError, ErrorSeverity, ErrorCategory
+
+@dataclass
+class DocumentationData:
+    file_overview: Dict[str, Any]
+    executive_summary: str
+    detailed_analysis: Dict[str, Any]
+    recommendations: List[str]
+    ai_navigation_guide: Dict[str, Any]
+    metadata: Dict[str, Any]
 
 
 class DocSynthesizer(BaseAnalyzer):
@@ -19,7 +29,7 @@ class DocSynthesizer(BaseAnalyzer):
     def __init__(self, name: str = "doc_synthesizer", dependencies: Optional[List[str]] = None):
         super().__init__(name, dependencies or ["structure_mapper", "data_profiler"])
     
-    def _perform_analysis(self, context: AnalysisContext) -> Dict[str, Any]:
+    def _perform_analysis(self, context: AnalysisContext) -> DocumentationData:
         """Synthesize final documentation from all module results
         
         Args:
@@ -39,21 +49,21 @@ class DocSynthesizer(BaseAnalyzer):
                 'metadata': self._create_metadata(context)
             }
             
-            return documentation
+            return DocumentationData(**documentation)
             
         except Exception as e:
             # Return minimal documentation rather than failing
             self.logger.error(f"Documentation synthesis failed: {e}")
-            return {
-                'file_overview': {'error': str(e)},
-                'executive_summary': f"Documentation synthesis failed: {e}",
-                'detailed_analysis': {},
-                'recommendations': [],
-                'ai_navigation_guide': {},
-                'metadata': {'synthesis_error': str(e)}
-            }
+            return DocumentationData(
+                file_overview={'error': str(e)},
+                executive_summary=f"Documentation synthesis failed: {e}",
+                detailed_analysis={},
+                recommendations=[],
+                ai_navigation_guide={},
+                metadata={'synthesis_error': str(e)}
+            )
     
-    def _validate_result(self, data: Dict[str, Any], context: AnalysisContext) -> ValidationResult:
+    def _validate_result(self, data: DocumentationData, context: AnalysisContext) -> ValidationResult:
         """Validate documentation synthesis results
         
         Args:
@@ -67,14 +77,14 @@ class DocSynthesizer(BaseAnalyzer):
         
         # Completeness based on documentation sections
         required_sections = ['file_overview', 'executive_summary', 'detailed_analysis', 'recommendations']
-        present_sections = sum(1 for section in required_sections if section in data and data[section])
+        present_sections = sum(1 for section in required_sections if getattr(data, section, None))
         completeness = present_sections / len(required_sections)
         
         # Accuracy based on successful module synthesis
-        if 'error' in data.get('file_overview', {}):
+        if 'error' in data.file_overview:
             accuracy = 0.3
             validation_notes.append("File overview generation failed")
-        elif not data.get('executive_summary'):
+        elif not data.executive_summary:
             accuracy = 0.5
             validation_notes.append("Executive summary missing")
         else:
@@ -82,7 +92,7 @@ class DocSynthesizer(BaseAnalyzer):
         
         # Consistency - check for logical structure
         consistency = 0.9
-        if not data.get('metadata'):
+        if not data.metadata:
             consistency -= 0.2
             validation_notes.append("Metadata missing")
         
@@ -94,9 +104,9 @@ class DocSynthesizer(BaseAnalyzer):
         else:
             confidence = ConfidenceLevel.LOW
         
-        if len(data.get('recommendations', [])) > 0:
+        if len(data.recommendations) > 0:
             validation_notes.append("Recommendations generated")
-        if data.get('ai_navigation_guide'):
+        if data.ai_navigation_guide:
             validation_notes.append("AI navigation guide created")
         
         return ValidationResult(

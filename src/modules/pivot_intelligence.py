@@ -173,46 +173,25 @@ class PivotIntelligence(BaseAnalyzer):
         }
         
         try:
-            # Check for pivot tables
-            # Note: openpyxl has limited support for pivot tables
-            # This is a basic placeholder implementation
-            
-            if hasattr(worksheet, '_pivots'):
-                for i, pivot in enumerate(worksheet._pivots):
-                    pivot_info = {
-                        'sheet': sheet_name,
-                        'id': f"pivot_{i}",
-                        'type': 'pivot_table',
-                        'location': str(getattr(pivot, 'location', 'unknown')),
-                        'name': getattr(pivot, 'name', f"PivotTable{i+1}")
-                    }
-                    
-                    # Try to get pivot table metadata
-                    try:
-                        if hasattr(pivot, 'cache'):
-                            cache = pivot.cache
-                            if hasattr(cache, 'cacheSource'):
-                                source_info = str(cache.cacheSource)
-                                result['sources'].append(source_info)
-                                pivot_info['data_source'] = source_info
-                        
-                        if hasattr(pivot, 'pivotFields'):
-                            pivot_info['field_count'] = len(pivot.pivotFields)
-                            
-                            # Look for calculated fields
-                            for field in pivot.pivotFields:
-                                if hasattr(field, 'calculatedField') and field.calculatedField:
-                                    calc_field = {
-                                        'pivot_id': f"pivot_{i}",
-                                        'name': getattr(field, 'name', 'unknown'),
-                                        'formula': str(getattr(field, 'calculatedField', ''))
-                                    }
-                                    result['calculated_fields'].append(calc_field)
-                    
-                    except Exception:
-                        pass
-                    
-                    result['tables'].append(pivot_info)
+            # Check for pivot-related content in cell values
+            pivot_indicators = ['pivot', 'table', 'sum of', 'count of', 'average of']
+          
+            for row_idx, row in enumerate(worksheet.iter_rows(max_row=50, values_only=True), 1):
+                for col_idx, cell in enumerate(row, 1):
+                    if cell and isinstance(cell, str):
+                        cell_lower = cell.lower()
+                        if any(indicator in cell_lower for indicator in pivot_indicators):
+                            result['tables'].append({
+                                'sheet': sheet_name,
+                                'id': f"potential_pivot_{len(result['tables'])}",
+                                'location': f"{chr(64+col_idx)}{row_idx}",
+                                'indicator': cell[:50],
+                                'type': 'detected_content'
+                            })
+                          
+            # Check for common pivot table patterns
+            if len(result['tables']) > 3:
+                result['sources'].append(f"Multiple pivot indicators in {sheet_name}")
         
         except Exception as e:
             self.logger.warning(f"Error analyzing pivot tables in {sheet_name}: {e}")
@@ -232,28 +211,22 @@ class PivotIntelligence(BaseAnalyzer):
         pivot_charts = []
         
         try:
-            # Check for charts that might be pivot charts
-            if hasattr(worksheet, '_charts'):
+            if hasattr(worksheet, '_charts') and worksheet._charts:
                 for i, chart in enumerate(worksheet._charts):
-                    # Basic heuristic: check if chart appears to be connected to pivot data
                     chart_info = {
                         'sheet': sheet_name,
-                        'id': f"pivot_chart_{i}",
-                        'type': 'pivot_chart',
-                        'chart_type': getattr(chart, 'tagname', 'unknown')
+                        'id': f"chart_{i}",
+                        'type': 'chart',
+                        'chart_type': getattr(chart, 'tagname', 'unknown'),
+                        'is_pivot_chart': False  # Default assumption
                     }
-                    
-                    # Try to determine if this is actually a pivot chart
-                    try:
-                        if hasattr(chart, 'pivotSource') or 'pivot' in str(chart).lower():
+                  
+                    # Basic heuristic for pivot charts
+                    if hasattr(chart, 'title') and chart.title:
+                        title_text = str(chart.title).lower()
+                        if any(keyword in title_text for keyword in ['sum', 'count', 'average', 'total']):
                             chart_info['is_pivot_chart'] = True
-                        else:
-                            chart_info['is_pivot_chart'] = False
-                            continue  # Skip non-pivot charts
-                    except Exception:
-                        chart_info['is_pivot_chart'] = False
-                        continue
-                    
+                  
                     pivot_charts.append(chart_info)
         
         except Exception as e:
@@ -278,24 +251,18 @@ class PivotIntelligence(BaseAnalyzer):
             # Note: openpyxl has limited support for slicers
             # This is a placeholder implementation
             
-            if hasattr(worksheet, 'slicers'):
-                for i, slicer in enumerate(worksheet.slicers):
-                    slicer_info = {
-                        'sheet': sheet_name,
-                        'id': f"slicer_{i}",
-                        'type': 'slicer',
-                        'name': getattr(slicer, 'name', f"Slicer{i+1}"),
-                        'caption': getattr(slicer, 'caption', None)
-                    }
-                    
-                    # Try to get slicer connections
-                    try:
-                        if hasattr(slicer, 'slicerCaches'):
-                            slicer_info['connected_pivots'] = len(slicer.slicerCaches)
-                    except Exception:
-                        pass
-                    
-                    slicers.append(slicer_info)
+            # Look for slicer-like content in cells
+            for row_idx, row in enumerate(worksheet.iter_rows(max_row=30, values_only=True), 1):
+                for col_idx, cell in enumerate(row, 1):
+                    if cell and isinstance(cell, str):
+                        if any(keyword in cell.lower() for keyword in ['filter', 'slicer', 'select']):
+                            slicers.append({
+                                'sheet': sheet_name,
+                                'id': f"potential_slicer_{len(slicers)}",
+                                'location': f"{chr(64+col_idx)}{row_idx}",
+                                'indicator': cell[:50],
+                                'type': 'content_based_detection'
+                            })
         
         except Exception as e:
             self.logger.warning(f"Error analyzing slicers in {sheet_name}: {e}")
