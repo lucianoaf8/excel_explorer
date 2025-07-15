@@ -1,0 +1,21 @@
+# Excel Explorer v2.0 Configuration
+
+analysis:
+  max_cells_check: 1000
+  max_formula_check: 1000
+  sample_rows: 100
+  memory_limit_mb: 512
+
+output:
+  json_enabled: true
+  html_enabled: true
+  include_raw_data: false
+
+performance:
+  parallel_processing: false
+  chunk_size: 1000
+  timeout_seconds: 300
+
+logging:
+  level: INFO
+  include_timestamps: true

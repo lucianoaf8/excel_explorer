@@ -13,8 +13,8 @@ from datetime import datetime, timedelta
 import webbrowser
 from typing import Dict, Any, Optional
 
-from src.engine.enhanced_orchestrator import EnhancedExcelExplorer
-from src.reports.report_generator import ReportGenerator
+from analyzer import SimpleExcelAnalyzer
+from report_generator import ReportGenerator
 
 
 class CircularProgress(tk.Canvas):
@@ -202,6 +202,8 @@ class ExcelExplorerApp:
         self.progress_detail = tk.StringVar(value="Select a file to begin analysis")
         self.timer_text = tk.StringVar(value="⏱️ 0.0s")
         self.analysis_running = tk.BooleanVar(value=False)
+        # Path to the last auto-exported report
+        self.auto_report_path: Optional[str] = None
         
     def setup_ui(self):
         """Create enhanced UI layout"""
@@ -358,7 +360,7 @@ class ExcelExplorerApp:
         
     def create_tabbed_interface(self, parent):
         """Create enhanced tabbed interface"""
-        notebook = ttk.Notebook(parent)
+        self.notebook = notebook = ttk.Notebook(parent)
         notebook.pack(fill=tk.BOTH, expand=True)
         
         # Analysis logs tab
@@ -386,7 +388,7 @@ class ExcelExplorerApp:
         self.results_text.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
         # Report display tab
-        report_frame = ttk.Frame(notebook)
+        self.report_frame = report_frame = ttk.Frame(notebook)
         notebook.add(report_frame, text="📄 Analysis Report")
         
         # Report will be populated after analysis
@@ -398,17 +400,25 @@ class ExcelExplorerApp:
         )
         self.report_text.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
-        # Add export button to report tab
+        # Action buttons in report tab
         export_frame = ttk.Frame(report_frame)
         export_frame.pack(fill=tk.X, padx=15, pady=(0, 15))
-        
+
+        self.open_report_btn = ttk.Button(
+            export_frame,
+            text="🌐 Open HTML Report",
+            command=self.open_last_report,
+            state=tk.DISABLED
+        )
+        self.open_report_btn.pack(side=tk.RIGHT)
+
         self.export_btn = ttk.Button(
             export_frame,
             text="💾 Export HTML Report",
             command=self.export_report,
             state=tk.DISABLED
         )
-        self.export_btn.pack(side=tk.RIGHT)
+        self.export_btn.pack(side=tk.RIGHT, padx=(0, 10))
         
     def select_file(self):
         """Open file selection dialog"""
@@ -490,14 +500,14 @@ class ExcelExplorerApp:
         try:
             # Initialize explorer
             self.log_message("🔧 Initializing Excel Explorer...")
-            self.explorer = EnhancedExcelExplorer()
+            self.explorer = SimpleExcelAnalyzer()
             
             # Run analysis with progress tracking
             file_path = self.selected_file.get()
             self.log_message(f"🚀 Starting analysis of {Path(file_path).name}")
             
             # Execute analysis
-            results = self.explorer.analyze_file(file_path, progress_callback=self._progress_callback)
+            results = self.explorer.analyze(file_path, progress_callback=self._progress_callback)
             
             # Analysis complete
             self.current_results = results
@@ -566,6 +576,13 @@ class ExcelExplorerApp:
             
             # Generate and display report
             self._display_embedded_report(results_dict)
+            
+            # Auto-export full HTML report
+            self._auto_export_report(results_dict)
+            
+            # Switch to report tab automatically
+            if hasattr(self, 'notebook') and hasattr(self, 'report_frame'):
+                self.notebook.select(self.report_frame)
             
             self.log_message("🎉 Analysis completed successfully!")
             messagebox.showinfo("Analysis Complete", "Excel file analysis completed successfully!")
@@ -733,6 +750,31 @@ class ExcelExplorerApp:
         
         return "\n".join(summary)
     
+    def open_last_report(self):
+        """Open the last auto-exported HTML report in default browser"""
+        if self.auto_report_path and Path(self.auto_report_path).exists():
+            webbrowser.open(f"file://{Path(self.auto_report_path).absolute()}")
+        else:
+            messagebox.showwarning("Report Not Found", "No exported report available to open.")
+
+    def _auto_export_report(self, results: Dict[str, Any]):
+        """Automatically export HTML report to reports folder"""
+        try:
+            reports_dir = Path(__file__).resolve().parent / "reports"
+            reports_dir.mkdir(exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_name = Path(self.selected_file.get()).stem if self.selected_file.get() else "report"
+            file_name = f"{base_name}_{timestamp}.html"
+            output_path = reports_dir / file_name
+            report_generator = ReportGenerator()
+            report_generator.generate_html_report(results, output_path)
+            self.auto_report_path = str(output_path)
+            # Enable open button
+            self.open_report_btn.config(state=tk.NORMAL)
+            self.log_message(f"💾 Report automatically exported to: {output_path}")
+        except Exception as e:
+            self.log_message(f"⚠️ Auto-export failed: {e}")
+
     def export_report(self):
         """Export full HTML report"""
         if not self.current_results:
