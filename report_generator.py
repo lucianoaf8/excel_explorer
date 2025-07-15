@@ -328,8 +328,12 @@ class ReportGenerator:
     
     def _generate_overview_tab(self, file_info: Dict, metadata: Dict, exec_summary: Dict, data_profiler: Dict, formula_data: Dict, visual_data: Dict, structure_data: Dict) -> str:
         """Generate the overview tab content"""
+        # Safe extraction with defaults
         success_rate = exec_summary.get('success_rate', 0) * 100
         quality_score = metadata.get('quality_score', 0) * 100
+        total_sheets = structure_data.get('total_sheets', file_info.get('sheet_count', 0))
+        total_cells = data_profiler.get('total_cells', 0)
+        # ... continue with safe extraction pattern
         
         return f"""
         <div class="grid-4">
@@ -360,7 +364,7 @@ class ReportGenerator:
                 <h3>📁 File Structure</h3>
                 <div class="metric">
                     <span class="metric-label">Total Sheets</span>
-                    <span class="metric-value primary">{structure_data.get('total_sheets', 0)}</span>
+                    <span class="metric-value primary">{total_sheets}</span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">Visible Sheets</span>

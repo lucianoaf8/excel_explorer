@@ -100,12 +100,16 @@ class StructuredTextReportGenerator:
                                if not isinstance(result, dict) or 'error' not in result)
         success_rate = (successful_modules / total_modules * 100) if total_modules > 0 else 0
         
+        # Get proper data sources
+        structure_data = module_results.get('structure_mapper', {})
+        data_profiler = module_results.get('data_profiler', {})
+        
         summary_items = [
-            f"Analysis Success Rate: {success_rate:.1f}%",
-            f"Quality Score: {metadata.get('quality_score', 0):.1f}%",
-            f"Processing Time: {execution_summary.get('total_time', 0):.1f}s",
-            f"Total Sheets: {len(results.get('sheets', []))}",
-            f"Data Density: {metadata.get('data_density', 0):.1f}%"
+            f"Analysis Success Rate: {execution_summary.get('success_rate', 0) * 100:.1f}%",
+            f"Quality Score: {metadata.get('quality_score', 0) * 100:.1f}%",
+            f"Processing Time: {metadata.get('total_duration_seconds', 0):.1f}s",
+            f"Total Sheets: {structure_data.get('total_sheets', file_info.get('sheet_count', 0))}",
+            f"Data Density: {data_profiler.get('overall_data_density', 0) * 100:.1f}%"
         ]
         
         for item in summary_items:
@@ -141,23 +145,27 @@ class StructuredTextReportGenerator:
         self._add_section_header('STRUCTURE ANALYSIS', 'section')
         
         # Try to get sheet data from different sources
-        sheets = results.get('sheets', [])
         module_results = results.get('module_results', {})
         structure_data = module_results.get('structure_mapper', {})
+        file_info = results.get('file_info', {})
         
-        # If no sheets in results, try to extract from structure_data
-        if not sheets and isinstance(structure_data, dict) and 'sheets' in structure_data:
-            sheets = structure_data['sheets']
+        # Get sheet names from file_info or structure_data
+        sheet_names = file_info.get('sheets', [])
+        if not sheet_names and structure_data:
+            sheet_names = structure_data.get('visible_sheets', []) + structure_data.get('hidden_sheets', [])
+        
+        # Get detailed sheet info from structure_data
+        sheet_details = structure_data.get('sheet_details', [])
         
         # Sheet inventory table
-        if sheets:
+        if sheet_names:
             self._add_subsection_header('Sheet Inventory')
             
             # Table headers
             headers = ['Sheet Name', 'Type', 'Rows', 'Cols', 'Status']
             table_data = []
             
-            for sheet in sheets:
+            for sheet in sheet_details if sheet_details else []:
                 sheet_name = sheet.get('name', 'Unknown')
                 sheet_type = sheet.get('type', 'Worksheet')
                 max_row = sheet.get('max_row', 0)
@@ -257,7 +265,7 @@ class StructuredTextReportGenerator:
                     self.report_sections.append("Available sheets:")
                     for sheet_name in sheet_names:
                         self.report_sections.append(f"  • {sheet_name}")
-                        self.report_sections.append("    Details unavailable due to analysis limitations")
+                        self.report_sections.append(f"    Details unavailable due to analysis limitations")
                     self.report_sections.append("")
                     return
             

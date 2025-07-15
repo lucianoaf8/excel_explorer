@@ -1,11 +1,11 @@
 {
   "file_info": {
-    "name": "tmpd3ybov74.xlsx",
-    "size_bytes": 5105,
+    "name": "tmpo73p3zmd.xlsx",
+    "size_bytes": 5104,
     "size_mb": 0.0,
-    "path": "/tmp/tmpd3ybov74.xlsx",
-    "created": "2025-07-15 10:21:39",
-    "modified": "2025-07-15 10:21:39",
+    "path": "/tmp/tmpo73p3zmd.xlsx",
+    "created": "2025-07-15 16:10:26",
+    "modified": "2025-07-15 16:10:26",
     "excel_version": "2007+",
     "compression_ratio": 22.7,
     "file_signature_valid": true,
@@ -15,10 +15,10 @@
     ]
   },
   "analysis_metadata": {
-    "timestamp": 1752596499.9987013,
-    "total_duration_seconds": 0.0063245296478271484,
-    "success_rate": 0.8461538461538461,
-    "quality_score": 0.1,
+    "timestamp": 1752617426.0714254,
+    "total_duration_seconds": 0.006624460220336914,
+    "success_rate": 0.9230769230769231,
+    "quality_score": 0.3,
     "security_score": 1.0,
     "modules_executed": [
       "health_checker",
@@ -42,10 +42,55 @@
       "file_signature_valid": true
     },
     "structure_mapper": {
-      "error": "'ReadOnlyWorksheet' object has no attribute 'protection'"
+      "total_sheets": 1,
+      "visible_sheets": [
+        "Test Sheet"
+      ],
+      "hidden_sheets": [],
+      "sheet_details": [
+        {
+          "name": "Test Sheet",
+          "state": "visible",
+          "max_row": 6,
+          "max_column": 5,
+          "dimensions": "6x5",
+          "status": "Small",
+          "has_protection": false,
+          "tab_color": null
+        }
+      ],
+      "named_ranges_count": 0,
+      "named_ranges_list": [],
+      "table_count": 0,
+      "table_details": [],
+      "has_hidden_content": false,
+      "workbook_features": {
+        "has_macros": false,
+        "has_external_connections": false,
+        "has_pivot_tables": 0,
+        "data_validation_rules": 0,
+        "conditional_formatting_rules": 0,
+        "print_areas_count": 0,
+        "freeze_panes_count": 0,
+        "hyperlinks_count": 0,
+        "comments_count": 0,
+        "images_count": 0,
+        "charts_count": 0
+      },
+      "protection_info": {
+        "workbook_protected": true,
+        "password_protected": false,
+        "protected_sheets": [],
+        "protection_features": []
+      }
     },
     "data_profiler": {
-      "error": "'ReadOnlyWorksheet' object has no attribute 'dimensions'"
+      "sheet_analysis": {},
+      "total_cells": 0,
+      "total_data_cells": 0,
+      "overall_data_density": 0,
+      "data_quality_score": 0,
+      "data_type_distribution": {}
     },
     "formula_analyzer": {
       "total_formulas": 0,
@@ -83,26 +128,26 @@
       "orphaned_records": {}
     },
     "performance_monitor": {
-      "elapsed_seconds": 0.006289243698120117,
+      "elapsed_seconds": 0.006569623947143555,
       "memory_usage": {
-        "current_mb": 38.59,
-        "peak_mb": 38.59
+        "current_mb": 38.34,
+        "peak_mb": 38.34
       },
       "cpu_usage": {
         "percent": 0
       },
-      "performance_score": 9.806755850315094
+      "performance_score": 9.807952768802643
     }
   },
   "execution_summary": {
     "total_modules": 13,
-    "successful_modules": 11,
-    "failed_modules": 2,
-    "success_rate": 0.8461538461538461,
+    "successful_modules": 12,
+    "failed_modules": 1,
+    "success_rate": 0.9230769230769231,
     "module_statuses": {
       "health_checker": "success",
       "file_info": "success",
-      "structure_mapper": "failed",
+      "structure_mapper": "success",
       "data_profiler": "failed",
       "formula_analyzer": "success",
       "visual_cataloger": "success",
@@ -120,7 +165,7 @@
       "current_mb": 50.0,
       "peak_mb": 50.0,
       "cpu_percent": 0.0,
-      "elapsed_seconds": 0.006326913833618164
+      "elapsed_seconds": 0.006627321243286133
     }
   },
   "recommendations": [

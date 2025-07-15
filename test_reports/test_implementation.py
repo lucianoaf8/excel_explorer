@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 
 # Add the project directory to the path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Try to import our modules with fallback handling
 try:

@@ -607,6 +607,12 @@ class ExcelExplorerApp:
             else:
                 results_dict = data
             
+            # In _finalize_analysis, validate metrics before display
+            if success and isinstance(data, dict):
+                exec_summary = results_dict.get('execution_summary', {})
+                if exec_summary.get('total_modules', 0) == 0:
+                    self.log_message("⚠️ Warning: No module execution data found")
+            
             # Display results summary
             summary = self._create_results_summary(results_dict)
             self.results_text.insert(tk.END, summary)
