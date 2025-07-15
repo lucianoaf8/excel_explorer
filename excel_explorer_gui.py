@@ -15,6 +15,7 @@ from typing import Dict, Any, Optional
 
 from analyzer import SimpleExcelAnalyzer
 from report_generator import ReportGenerator
+from structured_text_report import StructuredTextReportGenerator
 
 
 class CircularProgress(tk.Canvas):
@@ -391,6 +392,22 @@ class ExcelExplorerApp:
         self.report_frame = report_frame = ttk.Frame(notebook)
         notebook.add(report_frame, text="📄 Analysis Report")
         
+        # Search frame
+        search_frame = ttk.Frame(report_frame)
+        search_frame.pack(fill=tk.X, padx=15, pady=(15, 5))
+        
+        ttk.Label(search_frame, text="🔍 Search:").pack(side=tk.LEFT)
+        self.search_var = tk.StringVar()
+        self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=30)
+        self.search_entry.pack(side=tk.LEFT, padx=(5, 5))
+        self.search_entry.bind('<KeyRelease>', self._on_search_change)
+        
+        search_btn = ttk.Button(search_frame, text="Find", command=self._search_report)
+        search_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        clear_search_btn = ttk.Button(search_frame, text="Clear", command=self._clear_search)
+        clear_search_btn.pack(side=tk.LEFT)
+        
         # Report will be populated after analysis
         self.report_text = scrolledtext.ScrolledText(
             report_frame,
@@ -398,11 +415,27 @@ class ExcelExplorerApp:
             font=ModernStyle.FONT_BODY,
             height=20
         )
-        self.report_text.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        self.report_text.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
         
         # Action buttons in report tab
         export_frame = ttk.Frame(report_frame)
         export_frame.pack(fill=tk.X, padx=15, pady=(0, 15))
+
+        self.export_text_btn = ttk.Button(
+            export_frame,
+            text="📝 Export Text Report",
+            command=self.export_text_report,
+            state=tk.DISABLED
+        )
+        self.export_text_btn.pack(side=tk.RIGHT)
+
+        self.export_markdown_btn = ttk.Button(
+            export_frame,
+            text="📄 Export Markdown",
+            command=self.export_markdown_report,
+            state=tk.DISABLED
+        )
+        self.export_markdown_btn.pack(side=tk.RIGHT, padx=(0, 5))
 
         self.open_report_btn = ttk.Button(
             export_frame,
@@ -410,7 +443,7 @@ class ExcelExplorerApp:
             command=self.open_last_report,
             state=tk.DISABLED
         )
-        self.open_report_btn.pack(side=tk.RIGHT)
+        self.open_report_btn.pack(side=tk.RIGHT, padx=(0, 5))
 
         self.export_btn = ttk.Button(
             export_frame,
@@ -418,7 +451,7 @@ class ExcelExplorerApp:
             command=self.export_report,
             state=tk.DISABLED
         )
-        self.export_btn.pack(side=tk.RIGHT, padx=(0, 10))
+        self.export_btn.pack(side=tk.RIGHT, padx=(0, 5))
         
     def select_file(self):
         """Open file selection dialog"""
@@ -451,6 +484,8 @@ class ExcelExplorerApp:
         self.analyze_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
         self.export_btn.config(state=tk.DISABLED)
+        self.export_text_btn.config(state=tk.DISABLED)
+        self.export_markdown_btn.config(state=tk.DISABLED)
         
         # Clear previous results
         self.results_text.delete(1.0, tk.END)
@@ -556,6 +591,8 @@ class ExcelExplorerApp:
             
             # Enable export
             self.export_btn.config(state=tk.NORMAL)
+            self.export_text_btn.config(state=tk.NORMAL)
+            self.export_markdown_btn.config(state=tk.NORMAL)
             
             # Convert AnalysisResults to dict if needed
             if hasattr(data, 'file_info'):  # It's an AnalysisResults object
@@ -594,12 +631,11 @@ class ExcelExplorerApp:
             messagebox.showerror("Analysis Failed", f"Analysis failed: {data}")
             
     def _display_embedded_report(self, results: Dict[str, Any]):
-        """Display report in the GUI tab"""
+        """Display structured text report in the GUI tab"""
         try:
-            report_generator = ReportGenerator()
-            
-            # Create simplified text report for GUI display
-            report_text = self._create_text_report(results)
+            # Use the new structured text report generator
+            text_report_generator = StructuredTextReportGenerator()
+            report_text = text_report_generator.generate_report(results)
             
             self.report_text.delete(1.0, tk.END)
             self.report_text.insert(tk.END, report_text)
@@ -807,6 +843,119 @@ class ExcelExplorerApp:
         except Exception as e:
             self.log_message(f"❌ Export failed: {e}")
             messagebox.showerror("Export Error", f"Failed to export report: {e}")
+    
+    def export_text_report(self):
+        """Export structured text report"""
+        if not self.current_results:
+            messagebox.showwarning("No Results", "No analysis results available to export.")
+            return
+            
+        try:
+            # Ask user for save location
+            output_file = filedialog.asksaveasfilename(
+                title="Export Text Report",
+                defaultextension=".txt",
+                filetypes=[
+                    ('Text files', '*.txt'),
+                    ('All files', '*.*')
+                ]
+            )
+            
+            if output_file:
+                text_report_generator = StructuredTextReportGenerator()
+                report_text = text_report_generator.generate_report(self.current_results)
+                text_report_generator.export_to_file(report_text, output_file, 'txt')
+                
+                self.log_message(f"💾 Text report exported to: {output_file}")
+                messagebox.showinfo("Export Complete", f"Text report exported successfully to:\n{output_file}")
+                    
+        except Exception as e:
+            self.log_message(f"❌ Text export failed: {e}")
+            messagebox.showerror("Export Error", f"Failed to export text report: {e}")
+    
+    def export_markdown_report(self):
+        """Export structured markdown report"""
+        if not self.current_results:
+            messagebox.showwarning("No Results", "No analysis results available to export.")
+            return
+            
+        try:
+            # Ask user for save location
+            output_file = filedialog.asksaveasfilename(
+                title="Export Markdown Report",
+                defaultextension=".md",
+                filetypes=[
+                    ('Markdown files', '*.md'),
+                    ('All files', '*.*')
+                ]
+            )
+            
+            if output_file:
+                text_report_generator = StructuredTextReportGenerator()
+                report_text = text_report_generator.generate_report(self.current_results)
+                text_report_generator.export_to_file(report_text, output_file, 'md')
+                
+                self.log_message(f"💾 Markdown report exported to: {output_file}")
+                messagebox.showinfo("Export Complete", f"Markdown report exported successfully to:\n{output_file}")
+                    
+        except Exception as e:
+            self.log_message(f"❌ Markdown export failed: {e}")
+            messagebox.showerror("Export Error", f"Failed to export markdown report: {e}")
+    
+    def _search_report(self):
+        """Search for text in the report"""
+        search_term = self.search_var.get().strip()
+        if not search_term:
+            return
+            
+        # Clear previous search highlights
+        self.report_text.tag_remove("search_highlight", "1.0", tk.END)
+        
+        # Find all occurrences
+        start = "1.0"
+        count = 0
+        
+        while True:
+            pos = self.report_text.search(search_term, start, tk.END, nocase=True)
+            if not pos:
+                break
+                
+            # Calculate end position
+            end = f"{pos}+{len(search_term)}c"
+            
+            # Highlight the match
+            self.report_text.tag_add("search_highlight", pos, end)
+            
+            # Move to next position
+            start = end
+            count += 1
+        
+        # Configure highlight tag
+        self.report_text.tag_config("search_highlight", background="yellow", foreground="black")
+        
+        # Show first match
+        if count > 0:
+            first_match = self.report_text.search(search_term, "1.0", tk.END, nocase=True)
+            self.report_text.see(first_match)
+            self.log_message(f"🔍 Found {count} occurrences of '{search_term}'")
+        else:
+            self.log_message(f"🔍 No occurrences of '{search_term}' found")
+    
+    def _clear_search(self):
+        """Clear search highlights and text"""
+        self.search_var.set("")
+        self.report_text.tag_remove("search_highlight", "1.0", tk.END)
+        
+    def _on_search_change(self, event=None):
+        """Handle search text change"""
+        # Auto-search as user types (with debouncing)
+        if hasattr(self, '_search_timer'):
+            self.root.after_cancel(self._search_timer)
+        
+        if self.search_var.get().strip():
+            self._search_timer = self.root.after(500, self._search_report)  # 500ms delay
+        else:
+            self._clear_search()
     
     def stop_analysis(self):
         """Stop running analysis"""

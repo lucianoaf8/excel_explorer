@@ -1,0 +1,131 @@
+{
+  "file_info": {
+    "name": "tmpd3ybov74.xlsx",
+    "size_bytes": 5105,
+    "size_mb": 0.0,
+    "path": "/tmp/tmpd3ybov74.xlsx",
+    "created": "2025-07-15 10:21:39",
+    "modified": "2025-07-15 10:21:39",
+    "excel_version": "2007+",
+    "compression_ratio": 22.7,
+    "file_signature_valid": true,
+    "sheet_count": 1,
+    "sheets": [
+      "Test Sheet"
+    ]
+  },
+  "analysis_metadata": {
+    "timestamp": 1752596499.9987013,
+    "total_duration_seconds": 0.0063245296478271484,
+    "success_rate": 0.8461538461538461,
+    "quality_score": 0.1,
+    "security_score": 1.0,
+    "modules_executed": [
+      "health_checker",
+      "structure_mapper",
+      "data_profiler",
+      "formula_analyzer",
+      "visual_cataloger",
+      "security_inspector",
+      "dependency_mapper",
+      "relationship_analyzer",
+      "performance_monitor",
+      "connection_inspector",
+      "pivot_intelligence",
+      "doc_synthesizer"
+    ]
+  },
+  "module_results": {
+    "health_checker": {
+      "file_accessible": true,
+      "corruption_detected": false,
+      "file_signature_valid": true
+    },
+    "structure_mapper": {
+      "error": "'ReadOnlyWorksheet' object has no attribute 'protection'"
+    },
+    "data_profiler": {
+      "error": "'ReadOnlyWorksheet' object has no attribute 'dimensions'"
+    },
+    "formula_analyzer": {
+      "total_formulas": 0,
+      "complex_formulas": [],
+      "has_external_refs": false,
+      "formula_complexity_score": 0.0
+    },
+    "visual_cataloger": {
+      "total_charts": 0,
+      "total_images": 0,
+      "conditional_formatting_rules": 0,
+      "has_visual_content": false,
+      "visual_complexity_score": 0.0
+    },
+    "security_inspector": {
+      "overall_score": 10.0,
+      "threats": [],
+      "recommendations": [
+        "Security posture appears adequate for current data classification"
+      ],
+      "patterns_detected": {},
+      "risk_level": "Low"
+    },
+    "dependency_mapper": {
+      "dependency_matrix": {
+        "Test Sheet": {}
+      },
+      "has_circular": false
+    },
+    "relationship_analyzer": {
+      "relationships_found": [],
+      "key_mappings": {},
+      "match_rates": {},
+      "data_lineage": [],
+      "orphaned_records": {}
+    },
+    "performance_monitor": {
+      "elapsed_seconds": 0.006289243698120117,
+      "memory_usage": {
+        "current_mb": 38.59,
+        "peak_mb": 38.59
+      },
+      "cpu_usage": {
+        "percent": 0
+      },
+      "performance_score": 9.806755850315094
+    }
+  },
+  "execution_summary": {
+    "total_modules": 13,
+    "successful_modules": 11,
+    "failed_modules": 2,
+    "success_rate": 0.8461538461538461,
+    "module_statuses": {
+      "health_checker": "success",
+      "file_info": "success",
+      "structure_mapper": "failed",
+      "data_profiler": "failed",
+      "formula_analyzer": "success",
+      "visual_cataloger": "success",
+      "security_inspector": "success",
+      "dependency_mapper": "success",
+      "relationship_analyzer": "success",
+      "performance_monitor": "success",
+      "connection_inspector": "success",
+      "pivot_intelligence": "success",
+      "doc_synthesizer": "success"
+    }
+  },
+  "resource_usage": {
+    "current_usage": {
+      "current_mb": 50.0,
+      "peak_mb": 50.0,
+      "cpu_percent": 0.0,
+      "elapsed_seconds": 0.006326913833618164
+    }
+  },
+  "recommendations": [
+    "Low data density detected - consider removing empty regions",
+    "Limited data variety - consider data enrichment"
+  ],
+  "success": true
+}

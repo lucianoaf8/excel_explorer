@@ -5,11 +5,18 @@ Simple Excel Analyzer - Direct openpyxl implementation
 import openpyxl
 from openpyxl.utils import get_column_letter
 from pathlib import Path
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List, Set
 import time
 import re
 import yaml
 from datetime import datetime
+import os
+import zipfile
+import tempfile
+# import psutil  # Not available in this environment
+import threading
+from collections import defaultdict, Counter
+from statistics import mean, median, stdev
 
 
 class SimpleExcelAnalyzer:
@@ -53,12 +60,22 @@ class SimpleExcelAnalyzer:
             data_analysis = _safe_run("data_profiler", "Profiling data", lambda: self._analyze_data(wb))
             formula_analysis = _safe_run("formula_analyzer", "Analyzing formulas", lambda: self._analyze_formulas(wb))
             visual_analysis = _safe_run("visual_cataloger", "Cataloging visuals", lambda: self._analyze_visuals(wb))
+            security_analysis = _safe_run("security_inspector", "Security analysis", lambda: self._analyze_security(wb, data_analysis))
+            
+            # Cross-sheet relationship analysis
             conf_analysis = self.config.get('analysis', {})
             if conf_analysis.get('enable_cross_sheet_analysis', True):
                 dependency_map = _safe_run("dependency_mapper", "Mapping sheet dependencies", lambda: self._map_sheet_dependencies(wb))
+                relationships = _safe_run("relationship_analyzer", "Analyzing relationships", lambda: self._analyze_cross_sheet_relationships(wb, data_analysis))
             else:
                 module_statuses["dependency_mapper"] = "skipped"
+                module_statuses["relationship_analyzer"] = "skipped"
                 dependency_map = {'skipped': True}
+                relationships = {'skipped': True}
+            
+            # Performance monitoring
+            performance_data = _safe_run("performance_monitor", "Monitoring performance", lambda: self._monitor_performance(start_time))
+            
             _safe_run("connection_inspector", "Checking connections", lambda: None)
             _safe_run("pivot_intelligence", "Analyzing pivots", lambda: None)
             _safe_run("doc_synthesizer", "Generating documentation", lambda: None)
@@ -68,10 +85,12 @@ class SimpleExcelAnalyzer:
             # Compile results
             results = self._compile_results(
                 file_info, structure, data_analysis, 
-                formula_analysis, visual_analysis, start_time, module_statuses
+                formula_analysis, visual_analysis, security_analysis, start_time, module_statuses
             )
-            # Inject dependency mapper output
+            # Inject additional module outputs
             results.setdefault('module_results', {})['dependency_mapper'] = dependency_map
+            results.setdefault('module_results', {})['relationship_analyzer'] = relationships
+            results.setdefault('module_results', {})['performance_monitor'] = performance_data
             
             return results
             
@@ -101,60 +120,320 @@ class SimpleExcelAnalyzer:
             return {}
     
     def _get_file_info(self, file_path: str, wb) -> Dict[str, Any]:
-        """Extract basic file information"""
+        """Extract comprehensive file information with metadata"""
         path = Path(file_path)
         stat = path.stat()
         
+        # Calculate file size in bytes and MB
+        file_size_bytes = stat.st_size
+        file_size_mb = file_size_bytes / (1024 * 1024)
+        
+        # Determine Excel version based on file extension
+        excel_version = self._detect_excel_version(path)
+        
+        # Calculate compression ratio for xlsx files
+        compression_ratio = self._calculate_compression_ratio(file_path)
+        
+        # File signature validation
+        file_signature_valid = self._validate_file_signature(file_path)
+        
         return {
             'name': path.name,
-            'size_mb': stat.st_size / (1024 * 1024),
-            'path': str(path),
+            'size_bytes': file_size_bytes,
+            'size_mb': round(file_size_mb, 2),
+            'path': str(path.resolve()),
             'created': datetime.fromtimestamp(stat.st_ctime).strftime('%Y-%m-%d %H:%M:%S'),
             'modified': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+            'excel_version': excel_version,
+            'compression_ratio': compression_ratio,
+            'file_signature_valid': file_signature_valid,
             'sheet_count': len(wb.sheetnames),
             'sheets': wb.sheetnames
         }
     
+    def _detect_excel_version(self, path: Path) -> str:
+        """Detect Excel version based on file extension"""
+        suffix = path.suffix.lower()
+        version_map = {
+            '.xlsx': '2007+',
+            '.xlsm': '2007+ (Macro-enabled)',
+            '.xlsb': '2007+ (Binary)',
+            '.xls': '97-2003',
+            '.xlt': '97-2003 (Template)',
+            '.xltx': '2007+ (Template)',
+            '.xltm': '2007+ (Macro Template)'
+        }
+        return version_map.get(suffix, 'Unknown')
+    
+    def _calculate_compression_ratio(self, file_path: str) -> float:
+        """Calculate compression ratio for xlsx files"""
+        try:
+            path = Path(file_path)
+            if path.suffix.lower() not in ['.xlsx', '.xlsm', '.xlsb']:
+                return 0.0
+            
+            # xlsx files are ZIP archives
+            with zipfile.ZipFile(file_path, 'r') as zip_file:
+                compressed_size = sum(info.compress_size for info in zip_file.infolist())
+                uncompressed_size = sum(info.file_size for info in zip_file.infolist())
+                
+                if uncompressed_size == 0:
+                    return 0.0
+                
+                return round((compressed_size / uncompressed_size) * 100, 1)
+        except Exception:
+            return 0.0
+    
+    def _validate_file_signature(self, file_path: str) -> bool:
+        """Validate Excel file signature/header"""
+        try:
+            with open(file_path, 'rb') as f:
+                header = f.read(8)
+            
+            # Excel file signatures
+            xlsx_signature = b'\x50\x4B\x03\x04'  # ZIP signature for xlsx
+            xls_signature = b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'  # OLE signature for xls
+            
+            return header.startswith(xlsx_signature) or header.startswith(xls_signature)
+        except Exception:
+            return False
+    
     def _analyze_structure(self, wb) -> Dict[str, Any]:
-        """Analyze workbook structure"""
+        """Comprehensive workbook structure analysis"""
         visible_sheets = []
         hidden_sheets = []
+        sheet_details = []
         
+        # Analyze each sheet
         for ws in wb.worksheets:
+            sheet_detail = {
+                'name': ws.title,
+                'state': ws.sheet_state,
+                'max_row': ws.max_row,
+                'max_column': ws.max_column,
+                'dimensions': f"{ws.max_row}x{ws.max_column}",
+                'status': self._classify_sheet_status(ws),
+                'has_protection': ws.protection.sheet,
+                'tab_color': str(ws.sheet_properties.tabColor) if ws.sheet_properties.tabColor else None
+            }
+            
+            sheet_details.append(sheet_detail)
+            
             if ws.sheet_state == 'visible':
                 visible_sheets.append(ws.title)
             else:
                 hidden_sheets.append(ws.title)
         
-        # Count named ranges
-        named_ranges = 0
-        try:
-            named_ranges = len(list(wb.defined_names.definedName))
-        except:
-            pass
+        # Enhanced workbook features detection
+        features = self._detect_workbook_features(wb)
         
-        # Count tables
-        table_count = 0
-        try:
-            for ws in wb.worksheets:
-                table_count += len(ws.tables)
-        except:
-            pass
+        # Named ranges analysis
+        named_ranges_info = self._analyze_named_ranges(wb)
+        
+        # Table structures
+        table_info = self._analyze_table_structures(wb)
+        
+        # Workbook protection
+        protection_info = self._analyze_workbook_protection(wb)
         
         return {
             'total_sheets': len(wb.sheetnames),
             'visible_sheets': visible_sheets,
             'hidden_sheets': hidden_sheets,
-            'named_ranges_count': named_ranges,
-            'table_count': table_count,
-            'has_hidden_content': len(hidden_sheets) > 0
+            'sheet_details': sheet_details,
+            'named_ranges_count': named_ranges_info['count'],
+            'named_ranges_list': named_ranges_info['ranges'],
+            'table_count': table_info['count'],
+            'table_details': table_info['tables'],
+            'has_hidden_content': len(hidden_sheets) > 0,
+            'workbook_features': features,
+            'protection_info': protection_info
         }
     
+    def _classify_sheet_status(self, ws) -> str:
+        """Classify sheet status based on size and content"""
+        if not ws.max_row or not ws.max_column:
+            return 'Empty'
+        
+        cell_count = ws.max_row * ws.max_column
+        if cell_count > 100000:  # 100k cells
+            return 'Large'
+        elif cell_count > 10000:  # 10k cells
+            return 'Medium'
+        else:
+            return 'Small'
+    
+    def _detect_workbook_features(self, wb) -> Dict[str, Any]:
+        """Detect various workbook features"""
+        features = {
+            'has_macros': False,
+            'has_external_connections': False,
+            'has_pivot_tables': 0,
+            'data_validation_rules': 0,
+            'conditional_formatting_rules': 0,
+            'print_areas_count': 0,
+            'freeze_panes_count': 0,
+            'hyperlinks_count': 0,
+            'comments_count': 0,
+            'images_count': 0,
+            'charts_count': 0
+        }
+        
+        # Check for macros (VBA)
+        try:
+            if hasattr(wb, 'vba_archive') and wb.vba_archive:
+                features['has_macros'] = True
+        except:
+            pass
+        
+        # Analyze each sheet for features
+        for ws in wb.worksheets:
+            # Data validation rules
+            try:
+                if hasattr(ws, 'data_validations'):
+                    features['data_validation_rules'] += len(ws.data_validations.dataValidation)
+            except:
+                pass
+            
+            # Conditional formatting
+            try:
+                features['conditional_formatting_rules'] += len(ws.conditional_formatting)
+            except:
+                pass
+            
+            # Print areas
+            try:
+                if ws.print_area:
+                    features['print_areas_count'] += 1
+            except:
+                pass
+            
+            # Freeze panes
+            try:
+                if ws.freeze_panes:
+                    features['freeze_panes_count'] += 1
+            except:
+                pass
+            
+            # Hyperlinks
+            try:
+                features['hyperlinks_count'] += len(ws.hyperlinks)
+            except:
+                pass
+            
+            # Comments
+            try:
+                for row in ws.iter_rows():
+                    for cell in row:
+                        if cell.comment:
+                            features['comments_count'] += 1
+            except:
+                pass
+            
+            # Images
+            try:
+                features['images_count'] += len(ws._images)
+            except:
+                pass
+            
+            # Charts
+            try:
+                features['charts_count'] += len(ws._charts)
+            except:
+                pass
+        
+        return features
+    
+    def _analyze_named_ranges(self, wb) -> Dict[str, Any]:
+        """Analyze named ranges in workbook"""
+        named_ranges = []
+        count = 0
+        
+        try:
+            for defined_name in wb.defined_names.definedName:
+                count += 1
+                named_ranges.append({
+                    'name': defined_name.name,
+                    'refers_to': str(defined_name.attr_text),
+                    'scope': getattr(defined_name, 'localSheetId', 'Workbook')
+                })
+        except:
+            pass
+        
+        return {
+            'count': count,
+            'ranges': named_ranges[:20]  # Limit to first 20 for performance
+        }
+    
+    def _analyze_table_structures(self, wb) -> Dict[str, Any]:
+        """Analyze Excel table structures"""
+        tables = []
+        count = 0
+        
+        try:
+            for ws in wb.worksheets:
+                for table in ws.tables:
+                    count += 1
+                    tables.append({
+                        'name': table.name,
+                        'sheet': ws.title,
+                        'range': str(table.ref),
+                        'style': table.tableStyleInfo.name if table.tableStyleInfo else 'None'
+                    })
+        except:
+            pass
+        
+        return {
+            'count': count,
+            'tables': tables
+        }
+    
+    def _analyze_workbook_protection(self, wb) -> Dict[str, Any]:
+        """Analyze workbook protection settings"""
+        protection_info = {
+            'workbook_protected': False,
+            'password_protected': False,
+            'protected_sheets': [],
+            'protection_features': []
+        }
+        
+        try:
+            # Check workbook protection
+            if hasattr(wb, 'security') and wb.security:
+                protection_info['workbook_protected'] = True
+                if wb.security.workbookPassword:
+                    protection_info['password_protected'] = True
+        except:
+            pass
+        
+        # Check individual sheet protection
+        for ws in wb.worksheets:
+            try:
+                if ws.protection.sheet:
+                    protection_info['protected_sheets'].append({
+                        'sheet': ws.title,
+                        'password': bool(ws.protection.password),
+                        'select_locked_cells': ws.protection.selectLockedCells,
+                        'select_unlocked_cells': ws.protection.selectUnlockedCells
+                    })
+            except:
+                pass
+        
+        return protection_info
+    
     def _analyze_data(self, wb) -> Dict[str, Any]:
-        """Analyze data content, quality, and column types"""
+        """Comprehensive data profiling with cell-level analysis"""
         sheet_data = {}
         total_cells = 0
         total_data_cells = 0
+        overall_data_types = Counter()
+        
+        # Cross-sheet analysis data
+        cross_sheet_data = {
+            'relationships': [],
+            'potential_keys': {},
+            'data_lineage': []
+        }
         
         for ws in wb.worksheets:
             if not ws.max_row or not ws.max_column:
@@ -163,53 +442,74 @@ class SimpleExcelAnalyzer:
             sheet_cells = ws.max_row * ws.max_column
             total_cells += sheet_cells
             
+            # Enhanced sampling strategy
             sample_rows = min(self.config.get('analysis', {}).get('sample_rows', 100), ws.max_row)
-            # Header extraction (Task 1)
+            
+            # Comprehensive header analysis
             header_map = self._extract_sheet_headers(ws)
-            # Optional data quality metrics (Task 3)
-            if self.config.get('analysis', {}).get('enable_data_quality_checks', True):
-                quality_map = self._calculate_data_quality(ws, sample_rows)
-            else:
-                quality_map = {}
-
-
-            # Progressive sampling with fallback (Task 8)
+            
+            # Enhanced data quality metrics
+            quality_map = self._calculate_enhanced_data_quality(ws, sample_rows)
+            
+            # Advanced column statistics with timeout protection
             retry_rows = sample_rows
             while True:
                 try:
-                    column_stats, data_cells_sampled = self._compute_column_stats(
+                    column_stats, data_cells_sampled, type_distribution = self._compute_enhanced_column_stats(
                         ws, retry_rows, self.config.get('analysis', {}).get('timeout_per_sheet_seconds', 30)
                     )
-                    break  # success
+                    break
                 except (MemoryError, TimeoutError):
                     if retry_rows > 10:
                         retry_rows = max(10, retry_rows // 2)
-                        continue  # retry with smaller sample
+                        continue
                     else:
                         raise
             
-            # Determine dominant data type per column
+            # Update overall data type distribution
+            for data_type, count in type_distribution.items():
+                overall_data_types[data_type] += count
+            
+            # Enhanced column analysis
             columns_summary = []
             for letter, counts in column_stats.items():
                 dominant_type = max(counts, key=counts.get)
                 quality_metrics = quality_map.get(letter, {})
+                header_info = header_map.get(letter, {})
+                
+                # Calculate unique values and consistency
+                unique_values = quality_metrics.get('unique_count', 0)
+                consistency_score = self._calculate_consistency_score(counts)
+                
                 columns_summary.append({
                     'letter': letter,
+                    'number': ord(letter) - ord('A') + 1,
                     'range': f"{letter}1:{letter}{ws.max_row}",
                     'data_type': dominant_type,
-                    'header': header_map.get(letter, {}).get('header_name', ''),
-                    'header_missing': header_map.get(letter, {}).get('is_missing', False),
+                    'header': header_info.get('header_name', f'Column {letter}'),
+                    'header_missing': header_info.get('is_missing', False),
+                    'fill_rate': quality_metrics.get('fill_rate', 0.0),
+                    'unique_values': unique_values,
                     'nulls': quality_metrics.get('nulls', 0),
                     'duplicates': quality_metrics.get('duplicates', 0),
-                    'fill_rate': quality_metrics.get('fill_rate', 0.0),
-                    'sample_values': header_map.get(letter, {}).get('sample_values', [])
+                    'data_quality_issues': quality_metrics.get('issues', 0),
+                    'consistency_score': consistency_score,
+                    'sample_values': header_info.get('sample_values', []),
+                    'type_distribution': counts,
+                    'outliers': quality_metrics.get('outliers', [])
                 })
             
-            # Extrapolate data cells for full sheet if sampled
+            # Enhanced data analysis
             data_cells = data_cells_sampled
             if ws.max_row > sample_rows:
                 data_cells = int(data_cells_sampled * (ws.max_row / sample_rows))
             total_data_cells += data_cells
+            
+            # Advanced sheet metrics
+            sheet_metrics = self._calculate_sheet_metrics(ws, columns_summary, quality_map)
+            
+            # Duplicate row detection
+            duplicate_info = self._detect_duplicate_rows(ws, sample_rows)
             
             sheet_data[ws.title] = {
                 'dimensions': f"{ws.max_row}x{ws.max_column}",
@@ -221,65 +521,209 @@ class SimpleExcelAnalyzer:
                 'boundaries': self._analyze_data_boundaries(ws),
                 'sheet_properties': self._analyze_sheet_properties(ws),
                 'columns': sorted(columns_summary, key=lambda c: c['letter']),
-            'stream_stats': self._analyze_data_streaming(ws, self.config.get('analysis', {}).get('max_sample_rows', 1000)) if ws.max_row > sample_rows else {}
+                'data_quality_metrics': sheet_metrics,
+                'duplicate_rows': duplicate_info,
+                'stream_stats': self._analyze_data_streaming(ws, self.config.get('analysis', {}).get('max_sample_rows', 1000)) if ws.max_row > sample_rows else {}
             }
+            
+            # Collect potential relationship keys
+            cross_sheet_data['potential_keys'][ws.title] = self._identify_potential_keys(columns_summary)
+        
+        # Calculate overall metrics
+        overall_metrics = self._calculate_overall_metrics(total_cells, total_data_cells, overall_data_types)
         
         return {
             'sheet_analysis': sheet_data,
             'total_cells': total_cells,
             'total_data_cells': total_data_cells,
             'overall_data_density': total_data_cells / total_cells if total_cells > 0 else 0,
-            'data_quality_score': min(1.0, total_data_cells / max(1000, total_cells))
+            'data_quality_score': overall_metrics['quality_score'],
+            'data_type_distribution': dict(overall_data_types),
+            'overall_metrics': overall_metrics,
+            'cross_sheet_analysis': cross_sheet_data
         }
     
     # ------------------------------------------------------------------
     # Task 1: Header extraction helper
     # ------------------------------------------------------------------
-    def _calculate_data_quality(self, ws, sample_rows=100):
-        """Per-column data quality: nulls, duplicates, fill rate"""
-        col_nulls = {}
-        col_values = {}
+    def _calculate_enhanced_data_quality(self, ws, sample_rows=100):
+        """Enhanced data quality analysis with comprehensive metrics"""
+        col_data = defaultdict(lambda: {
+            'nulls': 0,
+            'values': set(),
+            'numeric_values': [],
+            'issues': 0,
+            'outliers': []
+        })
+        
         rows_checked = 0
         for row in ws.iter_rows(min_row=2, max_row=min(ws.max_row, sample_rows+1), values_only=True):
             rows_checked += 1
             for idx, value in enumerate(row, start=1):
                 letter = get_column_letter(idx)
-                if letter not in col_nulls:
-                    col_nulls[letter] = 0
-                    col_values[letter] = set()
+                
                 if value in (None, "", " "):
-                    col_nulls[letter] += 1
+                    col_data[letter]['nulls'] += 1
                 else:
-                    col_values[letter].add(value)
+                    col_data[letter]['values'].add(value)
+                    
+                    # Collect numeric values for outlier detection
+                    if isinstance(value, (int, float)):
+                        col_data[letter]['numeric_values'].append(value)
+                    
+                    # Check for data quality issues
+                    if self._is_data_quality_issue(value):
+                        col_data[letter]['issues'] += 1
+        
         quality = {}
-        for letter in col_nulls:
-            nulls = col_nulls[letter]
-            dupes = rows_checked - len(col_values[letter]) - nulls
+        for letter, data in col_data.items():
+            nulls = data['nulls']
+            unique_count = len(data['values'])
+            duplicates = rows_checked - unique_count - nulls
             fill_rate = 1 - (nulls / max(1, rows_checked))
-            quality[letter] = { 
+            
+            # Detect outliers for numeric columns
+            outliers = []
+            if len(data['numeric_values']) > 5:
+                outliers = self._detect_outliers(data['numeric_values'])
+            
+            quality[letter] = {
                 'nulls': nulls,
-                'duplicates': max(0, dupes),
-                'fill_rate': fill_rate
+                'duplicates': max(0, duplicates),
+                'fill_rate': fill_rate,
+                'unique_count': unique_count,
+                'issues': data['issues'],
+                'outliers': outliers[:5]  # Top 5 outliers
             }
+        
         return quality
+    
+    def _is_data_quality_issue(self, value) -> bool:
+        """Check if a value represents a data quality issue"""
+        if isinstance(value, str):
+            # Check for common data quality issues
+            issues = ['#N/A', '#ERROR', '#REF!', '#VALUE!', '#DIV/0!', '#NAME?', '#NUM!', '#NULL!']
+            return any(issue in str(value).upper() for issue in issues)
+        return False
+    
+    def _detect_outliers(self, values: List[float]) -> List[float]:
+        """Detect statistical outliers using IQR method"""
+        try:
+            if len(values) < 5:
+                return []
+            
+            q1 = sorted(values)[len(values) // 4]
+            q3 = sorted(values)[3 * len(values) // 4]
+            iqr = q3 - q1
+            
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+            
+            outliers = [v for v in values if v < lower_bound or v > upper_bound]
+            return outliers
+        except:
+            return []
+    
+    def _calculate_consistency_score(self, type_counts: Dict[str, int]) -> float:
+        """Calculate data type consistency score for a column"""
+        total = sum(type_counts.values())
+        if total == 0:
+            return 0.0
+        
+        dominant_count = max(type_counts.values())
+        return dominant_count / total
+    
+    def _calculate_sheet_metrics(self, ws, columns_summary: List[Dict], quality_map: Dict) -> Dict[str, Any]:
+        """Calculate comprehensive sheet-level metrics"""
+        if not columns_summary:
+            return {}
+        
+        fill_rates = [col['fill_rate'] for col in columns_summary]
+        consistency_scores = [col['consistency_score'] for col in columns_summary]
+        
+        return {
+            'average_fill_rate': mean(fill_rates) if fill_rates else 0.0,
+            'min_fill_rate': min(fill_rates) if fill_rates else 0.0,
+            'max_fill_rate': max(fill_rates) if fill_rates else 0.0,
+            'average_consistency': mean(consistency_scores) if consistency_scores else 0.0,
+            'columns_with_issues': sum(1 for col in columns_summary if col['data_quality_issues'] > 0),
+            'total_quality_issues': sum(col['data_quality_issues'] for col in columns_summary),
+            'header_consistency': sum(1 for col in columns_summary if not col['header_missing']) / len(columns_summary) if columns_summary else 0.0
+        }
+    
+    def _detect_duplicate_rows(self, ws, sample_rows: int) -> Dict[str, Any]:
+        """Detect duplicate rows in the sheet"""
+        seen_rows = set()
+        duplicate_count = 0
+        
+        try:
+            for row in ws.iter_rows(min_row=2, max_row=min(ws.max_row, sample_rows+1), values_only=True):
+                row_tuple = tuple(str(cell) if cell is not None else '' for cell in row)
+                if row_tuple in seen_rows:
+                    duplicate_count += 1
+                else:
+                    seen_rows.add(row_tuple)
+        except:
+            pass
+        
+        return {
+            'count': duplicate_count,
+            'percentage': (duplicate_count / max(1, sample_rows)) * 100
+        }
+    
+    def _identify_potential_keys(self, columns_summary: List[Dict]) -> List[str]:
+        """Identify potential key columns based on uniqueness"""
+        potential_keys = []
+        
+        for col in columns_summary:
+            if col['fill_rate'] > 0.95 and col['unique_values'] > 0:
+                uniqueness_ratio = col['unique_values'] / max(1, col['unique_values'] + col['duplicates'])
+                if uniqueness_ratio > 0.9:
+                    potential_keys.append(col['letter'])
+        
+        return potential_keys
+    
+    def _calculate_overall_metrics(self, total_cells: int, total_data_cells: int, data_types: Counter) -> Dict[str, Any]:
+        """Calculate overall workbook metrics"""
+        if total_cells == 0:
+            return {'quality_score': 0.0}
+        
+        data_density = total_data_cells / total_cells
+        
+        # Calculate data type distribution percentages
+        type_percentages = {}
+        if total_data_cells > 0:
+            for data_type, count in data_types.items():
+                type_percentages[data_type] = (count / total_data_cells) * 100
+        
+        # Calculate quality score based on multiple factors
+        quality_score = min(1.0, (
+            data_density * 0.4 +  # Data density weight
+            (1.0 if total_data_cells > 1000 else total_data_cells / 1000) * 0.3 +  # Data volume weight
+            (0.8 if len(data_types) > 1 else 0.5) * 0.3  # Data variety weight
+        ))
+        
+        return {
+            'quality_score': quality_score,
+            'data_density': data_density,
+            'type_distribution_percentages': type_percentages,
+            'data_variety_score': len(data_types) / 5.0  # Normalize to 5 main types
+        }
 
     # ------------------------------------------------------------------
     # Task 8: Column statistics with timeout & memory safeguards
     # ------------------------------------------------------------------
-    def _compute_column_stats(self, ws, max_rows: int, timeout_sec: int):
-        """Sample up to `max_rows` rows and compute per-column type counts.
-
-        Returns (column_stats, data_cells_sampled).
-        Raises TimeoutError if processing exceeds `timeout_sec` seconds.
-        """
-        from datetime import datetime  # local import to avoid top-level when not needed
+    def _compute_enhanced_column_stats(self, ws, max_rows: int, timeout_sec: int):
+        """Enhanced column statistics with comprehensive type analysis"""
         column_stats: Dict[str, Dict[str, int]] = {}
         data_cells_sampled = 0
+        overall_type_distribution = Counter()
         start_time = time.time()
 
         for row_idx, row in enumerate(ws.iter_rows(max_row=max_rows, values_only=True), start=1):
             if time.time() - start_time > timeout_sec:
                 raise TimeoutError("Sheet analysis timeout")
+            
             for col_idx, value in enumerate(row, start=1):
                 letter = get_column_letter(col_idx)
                 stats = column_stats.setdefault(letter, {
@@ -287,23 +731,360 @@ class SimpleExcelAnalyzer:
                     'date': 0,
                     'text': 0,
                     'boolean': 0,
-                    'blank': 0
+                    'blank': 0,
+                    'formula': 0,
+                    'error': 0
                 })
 
                 if value in (None, "", " "):
                     stats['blank'] += 1
+                    overall_type_distribution['blank'] += 1
                 else:
                     data_cells_sampled += 1
-                    if isinstance(value, (int, float)):
-                        stats['numeric'] += 1
-                    elif isinstance(value, datetime):
-                        stats['date'] += 1
-                    elif isinstance(value, bool):
-                        stats['boolean'] += 1
-                    else:
-                        stats['text'] += 1
+                    
+                    # Enhanced type detection
+                    cell_type = self._detect_enhanced_cell_type(value)
+                    stats[cell_type] += 1
+                    overall_type_distribution[cell_type] += 1
 
-        return column_stats, data_cells_sampled
+        return column_stats, data_cells_sampled, overall_type_distribution
+    
+    def _detect_enhanced_cell_type(self, value) -> str:
+        """Enhanced cell type detection with more categories"""
+        if isinstance(value, (int, float)):
+            return 'numeric'
+        elif isinstance(value, datetime):
+            return 'date'
+        elif isinstance(value, bool):
+            return 'boolean'
+        elif isinstance(value, str):
+            # Check for formula
+            if value.startswith('='):
+                return 'formula'
+            # Check for error values
+            if value.upper() in ['#N/A', '#ERROR', '#REF!', '#VALUE!', '#DIV/0!', '#NAME?', '#NUM!', '#NULL!']:
+                return 'error'
+            # Check if it's a date string
+            if self._is_date_string(value):
+                return 'date'
+            # Check if it's a numeric string
+            if self._is_numeric_string(value):
+                return 'numeric'
+            return 'text'
+        else:
+            return 'text'
+    
+    def _is_date_string(self, value: str) -> bool:
+        """Check if string represents a date"""
+        try:
+            # Common date patterns
+            date_patterns = [
+                r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',  # MM/DD/YYYY or DD/MM/YYYY
+                r'\d{4}[/-]\d{1,2}[/-]\d{1,2}',    # YYYY/MM/DD
+                r'\d{1,2}[/-]\w{3}[/-]\d{2,4}',    # DD/MMM/YYYY
+            ]
+            return any(re.match(pattern, value) for pattern in date_patterns)
+        except:
+            return False
+    
+    def _is_numeric_string(self, value: str) -> bool:
+        """Check if string represents a number"""
+        try:
+            float(value.replace(',', '').replace('$', '').replace('%', ''))
+            return True
+        except:
+            return False
+    
+    def _analyze_security(self, wb, data_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Comprehensive security analysis with pattern detection"""
+        security_results = {
+            'overall_score': 0.0,
+            'threats': [],
+            'recommendations': [],
+            'patterns_detected': {},
+            'risk_level': 'Low'
+        }
+        
+        # Security scoring components
+        security_score = 10.0  # Start with perfect score
+        
+        # 1. Macro detection
+        macro_analysis = self._detect_macros(wb)
+        if macro_analysis['has_macros']:
+            security_score -= 3.0
+            security_results['threats'].append('VBA macros detected')
+        
+        # 2. External reference detection
+        external_refs = self._detect_external_references(wb)
+        if external_refs['has_external_refs']:
+            security_score -= 2.0
+            security_results['threats'].append('External file references found')
+        
+        # 3. Sensitive data pattern detection
+        sensitive_patterns = self._detect_sensitive_data_patterns(wb, data_analysis)
+        if sensitive_patterns['patterns_found']:
+            security_score -= 1.5
+            security_results['patterns_detected'] = sensitive_patterns
+        
+        # 4. Protection analysis
+        protection_analysis = self._analyze_protection_status(wb)
+        if not protection_analysis['has_protection']:
+            security_score -= 1.0
+            security_results['threats'].append('No password protection detected')
+        
+        # 5. File size risk assessment
+        file_size_mb = data_analysis.get('file_info', {}).get('size_mb', 0)
+        if file_size_mb > 50:
+            security_score -= 0.5
+            security_results['threats'].append('Large file size may indicate data exfiltration risk')
+        
+        # Normalize score
+        security_results['overall_score'] = max(0.0, min(10.0, security_score))
+        
+        # Determine risk level
+        if security_results['overall_score'] >= 8.0:
+            security_results['risk_level'] = 'Low'
+        elif security_results['overall_score'] >= 6.0:
+            security_results['risk_level'] = 'Medium'
+        else:
+            security_results['risk_level'] = 'High'
+        
+        # Generate recommendations
+        security_results['recommendations'] = self._generate_security_recommendations(security_results)
+        
+        return security_results
+    
+    def _detect_macros(self, wb) -> Dict[str, Any]:
+        """Detect VBA macros in workbook"""
+        macro_info = {
+            'has_macros': False,
+            'macro_count': 0,
+            'modules': []
+        }
+        
+        try:
+            # Check for VBA archive
+            if hasattr(wb, 'vba_archive') and wb.vba_archive:
+                macro_info['has_macros'] = True
+                # Additional macro analysis could be added here
+        except:
+            pass
+        
+        return macro_info
+    
+    def _detect_external_references(self, wb) -> Dict[str, Any]:
+        """Detect external file references"""
+        external_refs = {
+            'has_external_refs': False,
+            'references': [],
+            'count': 0
+        }
+        
+        try:
+            # Check formulas for external references
+            for ws in wb.worksheets:
+                for row in ws.iter_rows(max_row=min(ws.max_row, 1000)):
+                    for cell in row:
+                        if cell.value and isinstance(cell.value, str) and cell.value.startswith('='):
+                            formula = str(cell.value)
+                            # Look for external file references [filename]
+                            if '[' in formula and ']' in formula:
+                                external_refs['has_external_refs'] = True
+                                external_refs['count'] += 1
+                                # Extract reference (simplified)
+                                matches = re.findall(r'\[([^\]]+)\]', formula)
+                                external_refs['references'].extend(matches)
+        except:
+            pass
+        
+        return external_refs
+    
+    def _detect_sensitive_data_patterns(self, wb, data_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Detect sensitive data patterns using regex"""
+        patterns = {
+            'email_addresses': r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+            'ssn_numbers': r'\b\d{3}-\d{2}-\d{4}\b|\b\d{9}\b',
+            'credit_cards': r'\b(?:\d{4}[-\s]?){3}\d{4}\b',
+            'phone_numbers': r'\b\(?\d{3}\)?[-\s]?\d{3}[-\s]?\d{4}\b',
+            'financial_amounts': r'\$[\d,]+\.?\d*',
+            'account_numbers': r'\b\d{8,}\b'
+        }
+        
+        detected_patterns = {
+            'patterns_found': False,
+            'pattern_counts': {},
+            'risk_score': 0.0
+        }
+        
+        try:
+            sheet_analysis = data_analysis.get('sheet_analysis', {})
+            for sheet_name, sheet_data in sheet_analysis.items():
+                columns = sheet_data.get('columns', [])
+                for column in columns:
+                    sample_values = column.get('sample_values', [])
+                    for value in sample_values:
+                        if isinstance(value, str):
+                            for pattern_name, pattern_regex in patterns.items():
+                                if re.search(pattern_regex, value):
+                                    detected_patterns['patterns_found'] = True
+                                    detected_patterns['pattern_counts'][pattern_name] = \
+                                        detected_patterns['pattern_counts'].get(pattern_name, 0) + 1
+        except:
+            pass
+        
+        # Calculate risk score based on patterns found
+        risk_weights = {
+            'ssn_numbers': 3.0,
+            'credit_cards': 3.0,
+            'account_numbers': 2.0,
+            'email_addresses': 1.0,
+            'phone_numbers': 1.0,
+            'financial_amounts': 0.5
+        }
+        
+        for pattern_name, count in detected_patterns['pattern_counts'].items():
+            weight = risk_weights.get(pattern_name, 1.0)
+            detected_patterns['risk_score'] += min(count * weight, 5.0)  # Cap at 5 per pattern
+        
+        return detected_patterns
+    
+    def _analyze_protection_status(self, wb) -> Dict[str, Any]:
+        """Analyze workbook and sheet protection status"""
+        protection_info = {
+            'has_protection': False,
+            'workbook_protected': False,
+            'protected_sheets': 0,
+            'protection_details': []
+        }
+        
+        try:
+            # Check workbook protection
+            if hasattr(wb, 'security') and wb.security:
+                protection_info['workbook_protected'] = True
+                protection_info['has_protection'] = True
+            
+            # Check sheet protection
+            for ws in wb.worksheets:
+                if ws.protection.sheet:
+                    protection_info['protected_sheets'] += 1
+                    protection_info['has_protection'] = True
+                    protection_info['protection_details'].append({
+                        'sheet': ws.title,
+                        'password_protected': bool(ws.protection.password)
+                    })
+        except:
+            pass
+        
+        return protection_info
+    
+    def _generate_security_recommendations(self, security_results: Dict[str, Any]) -> List[str]:
+        """Generate security recommendations based on analysis"""
+        recommendations = []
+        
+        if security_results['overall_score'] < 8.0:
+            recommendations.append('Consider implementing password protection for sensitive data')
+        
+        if 'VBA macros detected' in security_results['threats']:
+            recommendations.append('Review macro code for potential security risks')
+        
+        if 'External file references found' in security_results['threats']:
+            recommendations.append('Verify all external file references are from trusted sources')
+        
+        if security_results['patterns_detected'].get('patterns_found', False):
+            recommendations.append('Implement data classification and handling procedures for sensitive information')
+        
+        if not recommendations:
+            recommendations.append('Security posture appears adequate for current data classification')
+        
+        return recommendations
+    
+    def _analyze_cross_sheet_relationships(self, wb, data_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze relationships between sheets"""
+        relationships = {
+            'relationships_found': [],
+            'key_mappings': {},
+            'match_rates': {},
+            'data_lineage': [],
+            'orphaned_records': {}
+        }
+        
+        try:
+            sheet_analysis = data_analysis.get('sheet_analysis', {})
+            potential_keys = data_analysis.get('cross_sheet_analysis', {}).get('potential_keys', {})
+            
+            # Find relationships between sheets
+            sheet_names = list(sheet_analysis.keys())
+            for i, sheet1 in enumerate(sheet_names):
+                for sheet2 in sheet_names[i+1:]:
+                    relationship = self._find_sheet_relationship(sheet1, sheet2, sheet_analysis, potential_keys)
+                    if relationship:
+                        relationships['relationships_found'].append(relationship)
+        except:
+            pass
+        
+        return relationships
+    
+    def _find_sheet_relationship(self, sheet1: str, sheet2: str, sheet_analysis: Dict, potential_keys: Dict) -> Optional[Dict]:
+        """Find relationship between two sheets"""
+        try:
+            keys1 = potential_keys.get(sheet1, [])
+            keys2 = potential_keys.get(sheet2, [])
+            
+            # Simple heuristic: if sheets have similar column names, they might be related
+            sheet1_columns = {col['header'].lower() for col in sheet_analysis[sheet1].get('columns', [])}
+            sheet2_columns = {col['header'].lower() for col in sheet_analysis[sheet2].get('columns', [])}
+            
+            common_columns = sheet1_columns.intersection(sheet2_columns)
+            
+            if common_columns:
+                return {
+                    'source_sheet': sheet1,
+                    'target_sheet': sheet2,
+                    'relationship_type': 'potential_join',
+                    'key_columns': list(common_columns),
+                    'match_rate': len(common_columns) / max(len(sheet1_columns), len(sheet2_columns))
+                }
+        except:
+            pass
+        
+        return None
+    
+    def _monitor_performance(self, start_time: float) -> Dict[str, Any]:
+        """Monitor performance metrics during analysis"""
+        current_time = time.time()
+        
+        # Get memory usage (simplified without psutil)
+        try:
+            import resource
+            memory_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            current_memory_mb = memory_usage / 1024  # Convert to MB
+            peak_memory_mb = current_memory_mb
+        except:
+            current_memory_mb = 0
+            peak_memory_mb = 0
+        
+        # CPU usage (simplified)
+        cpu_percent = 0
+        
+        return {
+            'elapsed_seconds': current_time - start_time,
+            'memory_usage': {
+                'current_mb': round(current_memory_mb, 2),
+                'peak_mb': round(peak_memory_mb, 2)
+            },
+            'cpu_usage': {
+                'percent': cpu_percent
+            },
+            'performance_score': self._calculate_performance_score(current_time - start_time, current_memory_mb)
+        }
+    
+    def _calculate_performance_score(self, elapsed_seconds: float, memory_mb: float) -> float:
+        """Calculate performance score based on time and memory usage"""
+        # Simple scoring: faster and less memory = better score
+        time_score = max(0, 10 - elapsed_seconds / 10)  # Deduct 1 point per 10 seconds
+        memory_score = max(0, 10 - memory_mb / 100)     # Deduct 1 point per 100MB
+        
+        return (time_score + memory_score) / 2
 
     # ------------------------------------------------------------------
     # Task 2: Data range / boundary analysis
@@ -393,236 +1174,36 @@ class SimpleExcelAnalyzer:
                 else:
                     stats['text'] += 1
         return stats
+    
+    def _extract_sheet_headers(self, ws):
+        """Extract headers from the first row, handling missing headers"""
+        headers: Dict[str, Dict[str, Any]] = {}
 
-    def _analyze_data(self, wb) -> Dict[str, Any]:
-        """Analyze data content, quality, and column types"""
-        sheet_data = {}
-        total_cells = 0
-        total_data_cells = 0
-        
-        for ws in wb.worksheets:
-            if not ws.max_row or not ws.max_column:
-                continue
-            
-            sheet_cells = ws.max_row * ws.max_column
-            total_cells += sheet_cells
-            
-            sample_rows = min(self.config.get('analysis', {}).get('sample_rows', 100), ws.max_row)
-            # Header extraction (Task 1)
-            header_map = self._extract_sheet_headers(ws)
-            # Optional data quality metrics (Task 3)
-            if self.config.get('analysis', {}).get('enable_data_quality_checks', True):
-                quality_map = self._calculate_data_quality(ws, sample_rows)
-            else:
-                quality_map = {}
-            
-            # Progressive sampling with fallback (Task 8)
-            retry_rows = sample_rows
-            while True:
-                try:
-                    column_stats, data_cells_sampled = self._compute_column_stats(
-                        ws, retry_rows, self.config.get('analysis', {}).get('timeout_per_sheet_seconds', 30)
-                    )
-                    break  # success
-                except (MemoryError, TimeoutError):
-                    if retry_rows > 10:
-                        retry_rows = max(10, retry_rows // 2)
-                        continue  # retry with smaller sample
-                    else:
-                        raise
-            
-            # Determine dominant data type per column
-            columns_summary = []
-            for letter, counts in column_stats.items():
-                dominant_type = max(counts, key=counts.get)
-                quality_metrics = quality_map.get(letter, {})
-                columns_summary.append({
-                    'letter': letter,
-                    'range': f"{letter}1:{letter}{ws.max_row}",
-                    'data_type': dominant_type,
-                    'header': header_map.get(letter, {}).get('header_name', ''),
-                    'header_missing': header_map.get(letter, {}).get('is_missing', False),
-                    'nulls': quality_metrics.get('nulls', 0),
-                    'duplicates': quality_metrics.get('duplicates', 0),
-                    'fill_rate': quality_metrics.get('fill_rate', 0.0),
-                    'sample_values': header_map.get(letter, {}).get('sample_values', [])
-                })
-            
-            # Extrapolate data cells for full sheet if sampled
-            data_cells = data_cells_sampled
-            if ws.max_row > sample_rows:
-                data_cells = int(data_cells_sampled * (ws.max_row / sample_rows))
-            total_data_cells += data_cells
-            
-            sheet_data[ws.title] = {
-                'dimensions': f"{ws.max_row}x{ws.max_column}",
-                'used_range': ws.dimensions,
-                'estimated_data_cells': data_cells,
-                'empty_cells': sheet_cells - data_cells,
-                'has_data': data_cells > 0,
-                'data_density': data_cells / sheet_cells if sheet_cells > 0 else 0,
-                'boundaries': self._analyze_data_boundaries(ws),
-                'sheet_properties': self._analyze_sheet_properties(ws),
-                'columns': sorted(columns_summary, key=lambda c: c['letter']),
-            'stream_stats': self._analyze_data_streaming(ws, self.config.get('analysis', {}).get('max_sample_rows', 1000)) if ws.max_row > sample_rows else {}
-            }
-        
-        return {
-            'sheet_analysis': sheet_data,
-            'total_cells': total_cells,
-            'total_data_cells': total_data_cells,
-            'overall_data_density': total_data_cells / total_cells if total_cells > 0 else 0,
-            'data_quality_score': min(1.0, total_data_cells / max(1000, total_cells))
-    }
-
-# ------------------------------------------------------------------
-# Task 3: Data quality metrics
-# ------------------------------------------------------------------
-def _calculate_data_quality(self, ws, sample_rows=100):
-    """Per-column data quality: nulls, duplicates, fill rate"""
-    col_nulls = {}
-    col_values = {}
-    rows_checked = 0
-    for row in ws.iter_rows(min_row=2, max_row=min(ws.max_row, sample_rows+1), values_only=True):
-        rows_checked += 1
-        for idx, value in enumerate(row, start=1):
-            letter = get_column_letter(idx)
-            if letter not in col_nulls:
-                col_nulls[letter] = 0
-                col_values[letter] = set()
-            if value in (None, "", " "):
-                col_nulls[letter] += 1
-            else:
-                col_values[letter].add(value)
-    quality = {}
-    for letter in col_nulls:
-        nulls = col_nulls[letter]
-        dupes = rows_checked - len(col_values[letter]) - nulls
-        fill_rate = 1 - (nulls / max(1, rows_checked))
-        quality[letter] = { 
-            'nulls': nulls,
-            'duplicates': max(0, dupes),
-            'fill_rate': fill_rate
-        }
-    return quality
-
-# ------------------------------------------------------------------
-# Task 1: Header extraction
-# ------------------------------------------------------------------
-def _extract_sheet_headers(self, ws):
-    """Extract headers from the first row, handling missing headers"""
-    headers: Dict[str, Dict[str, Any]] = {}
-
-    # --- header names -----------------------------------------------------
-    first_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
-    for col_idx, value in enumerate(first_row, start=1):
-        col_letter = get_column_letter(col_idx)
-        header_name = str(value).strip() if value is not None else ""
-        headers[col_letter] = {
-            'header_name': header_name or f"Column {col_letter}",
-            'is_missing': header_name == "",
-            'sample_values': []
-        }
-
-    # --- sample values (rows 2-11) ---------------------------------------
-    for row in ws.iter_rows(min_row=2, max_row=11, values_only=True):
-        for col_idx, value in enumerate(row, start=1):
-            if value in (None, "", " "):
-                continue
+        # --- header names -----------------------------------------------------
+        first_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        for col_idx, value in enumerate(first_row, start=1):
             col_letter = get_column_letter(col_idx)
-            samples = headers[col_letter]['sample_values']
-            if len(samples) < 3:
-                samples.append(str(value)[:50])  # truncate long strings
-            # early exit if all columns filled
-            if all(len(v['sample_values']) >= 3 for v in headers.values()):
-                break
+            header_name = str(value).strip() if value is not None else ""
+            headers[col_letter] = {
+                'header_name': header_name or f"Column {col_letter}",
+                'is_missing': header_name == "",
+                'sample_values': []
+            }
 
-    return headers
-
-# ------------------------------------------------------------------
-# Task 2: Data range / boundary analysis
-# ------------------------------------------------------------------
-def _analyze_data_boundaries(self, ws):
-    """Return dict of true data boundaries and other range metadata."""
-    # Determine last non-empty row/col (backward scan)
-    last_row = ws.max_row
-    while last_row > 1:
-        if any(cell.value not in (None, "", " ") for cell in ws[last_row]):
-            break
-        last_row -= 1
-    last_col = ws.max_column
-    while last_col > 1:
-        if any(ws.cell(row=r, column=last_col).value not in (None, "", " ") for r in range(1, min(ws.max_row, 200))):
-            # only sample first 200 rows for speed
-            break
-        last_col -= 1
-    true_range = f"A1:{get_column_letter(last_col)}{last_row}"
-    return {
-        'declared_range': ws.dimensions,
-        'true_range': true_range,
-        'freeze_panes': str(ws.freeze_panes or ''),
-        'merged_cells': len(ws.merged_cells.ranges),
-        'hyperlinks': len(ws.hyperlinks),
-        'comments': sum(1 for row in ws.iter_rows(values_only=False) for c in row if c.comment),
-        'print_area': str(ws.print_area or ''),
-        'auto_filter': bool(ws.auto_filter.ref if ws.auto_filter else False)
-    }
-
-# ------------------------------------------------------------------
-# Task 4: Sheet properties / formatting
-# ------------------------------------------------------------------
-def _analyze_sheet_properties(self, ws):
-    return {
-        'protected': ws.protection.sheet,
-        'protection_options': {
-                'password': bool(ws.protection.password),
-                'select_locked_cells': ws.protection.selectLockedCells,
-                'select_unlocked_cells': ws.protection.selectUnlockedCells,
-            },
-        'conditional_formatting_rules': len(ws.conditional_formatting),
-        'data_validation_count': len(ws.data_validations.dataValidation) if getattr(ws, 'data_validations', None) else 0,
-        'tab_color': str(ws.sheet_properties.tabColor or ''),
-        'visibility': ws.sheet_state
-    }
-
-# ------------------------------------------------------------------
-# Task 5: Cross-sheet dependency mapping
-# ------------------------------------------------------------------
-def _map_sheet_dependencies(self, wb):
-    pattern = re.compile(r"'?(?P<sheet>[A-Za-z0-9 _]+)'?!")
-    deps = {}
-    for ws in wb.worksheets:
-        deps.setdefault(ws.title, {})
-        for row in ws.iter_rows(max_row=self.config.get('analysis', {}).get('max_formula_check', 1000)):
-            for cell in row:
-                if cell.value and isinstance(cell.value, str) and cell.value.startswith('='):
-                    for m in pattern.finditer(cell.value):
-                            target = m.group('sheet')
-                            if target == ws.title:
-                                continue
-                            deps[ws.title][target] = deps[ws.title].get(target, 0) + 1
-        # Detect circular
-        circular = any(start in deps.get(end, {}) for start in deps for end in deps[start])
-        return {'dependency_matrix': deps, 'has_circular': circular}
-
-    # ------------------------------------------------------------------
-    # Task 6: Streaming data analysis (prototype)
-    # ------------------------------------------------------------------
-    def _analyze_data_streaming(self, ws, max_sample_rows=1000):
-        """Lightweight stats for very large sheets."""
-        stats = {'rows_scanned': 0, 'numeric': 0, 'text': 0}
-        for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
-            if row_idx > max_sample_rows:
-                break
-            stats['rows_scanned'] += 1
-            for value in row:
-                if value is None:
+        # --- sample values (rows 2-11) ---------------------------------------
+        for row in ws.iter_rows(min_row=2, max_row=11, values_only=True):
+            for col_idx, value in enumerate(row, start=1):
+                if value in (None, "", " "):
                     continue
-                if isinstance(value, (int, float)):
-                    stats['numeric'] += 1
-                else:
-                    stats['text'] += 1
-        return stats
+                col_letter = get_column_letter(col_idx)
+                samples = headers[col_letter]['sample_values']
+                if len(samples) < 3:
+                    samples.append(str(value)[:50])  # truncate long strings
+                # early exit if all columns filled
+                if all(len(v['sample_values']) >= 3 for v in headers.values()):
+                    break
+
+        return headers
 
     def _analyze_formulas(self, wb) -> Dict[str, Any]:
         """Analyze formulas and dependencies"""
@@ -702,63 +1283,91 @@ def _map_sheet_dependencies(self, wb):
         }
     
     def _compile_results(self, file_info: Dict, structure: Dict, data: Dict, 
-                        formulas: Dict, visuals: Dict, start_time: float, module_statuses: Dict[str, str]) -> Dict[str, Any]:
-        """Compile all results into final format"""
+                        formulas: Dict, visuals: Dict, security: Dict, start_time: float, module_statuses: Dict[str, str]) -> Dict[str, Any]:
+        """Compile all results into final format with enhanced metrics"""
         
-        # Calculate quality score
+        # Enhanced quality score calculation
         quality_components = [
-            data.get('data_quality_score', 0) * 0.4,
-            structure.get('named_ranges_count', 0) / 10 * 0.2,
-            min(1.0, formulas.get('total_formulas', 0) / 100) * 0.2,
-            visuals.get('visual_complexity_score', 0) * 0.2
+            data.get('data_quality_score', 0) * 0.3,
+            data.get('overall_metrics', {}).get('data_density', 0) * 0.2,
+            structure.get('named_ranges_count', 0) / 10 * 0.15,
+            min(1.0, formulas.get('total_formulas', 0) / 100) * 0.15,
+            visuals.get('visual_complexity_score', 0) * 0.1,
+            security.get('overall_score', 0) / 10 * 0.1
         ]
         overall_quality = sum(quality_components)
         
-        # Generate recommendations
+        # Enhanced recommendations
         recommendations = []
+        
+        # Data quality recommendations
         if data.get('overall_data_density', 0) < 0.1:
             recommendations.append("Low data density detected - consider removing empty regions")
+        
+        # Security recommendations
+        if security.get('overall_score', 10) < 8.0:
+            recommendations.extend(security.get('recommendations', []))
+        
+        # Structure recommendations
         if formulas.get('has_external_refs'):
             recommendations.append("External references found - verify linked files are available")
         if len(structure.get('hidden_sheets', [])) > 0:
             recommendations.append("Hidden sheets detected - review for sensitive information")
+        
+        # Performance recommendations
+        if file_info.get('size_mb', 0) > 50:
+            recommendations.append("Large file size detected - consider archiving or splitting data")
+        
+        # Data quality recommendations
+        overall_metrics = data.get('overall_metrics', {})
+        if overall_metrics.get('data_variety_score', 0) < 0.3:
+            recommendations.append("Limited data variety - consider data enrichment")
+        
         if not recommendations:
-            recommendations.append("File structure appears optimized")
+            recommendations.append("File structure and security appear optimized")
+        
+        # Calculate success rate based on module statuses
+        successful_modules = sum(1 for s in module_statuses.values() if s == 'success')
+        total_modules = len(module_statuses)
+        success_rate = successful_modules / max(1, total_modules)
         
         return {
             'file_info': file_info,
             'analysis_metadata': {
                 'timestamp': time.time(),
                 'total_duration_seconds': time.time() - start_time,
-                'success_rate': 1.0,  # All modules completed
+                'success_rate': success_rate,
                 'quality_score': overall_quality,
+                'security_score': security.get('overall_score', 0) / 10,
                 'modules_executed': [
                     'health_checker', 'structure_mapper', 'data_profiler', 
-                    'formula_analyzer', 'visual_cataloger', 'connection_inspector',
-                    'pivot_intelligence', 'doc_synthesizer'
+                    'formula_analyzer', 'visual_cataloger', 'security_inspector',
+                    'dependency_mapper', 'relationship_analyzer', 'performance_monitor',
+                    'connection_inspector', 'pivot_intelligence', 'doc_synthesizer'
                 ]
             },
             'module_results': {
                 'health_checker': {
                     'file_accessible': True,
                     'corruption_detected': False,
-                    'security_issues': []
+                    'file_signature_valid': file_info.get('file_signature_valid', True)
                 },
                 'structure_mapper': structure,
                 'data_profiler': data,
                 'formula_analyzer': formulas,
-                'visual_cataloger': visuals
+                'visual_cataloger': visuals,
+                'security_inspector': security
             },
             'execution_summary': {
-                'total_modules': len(module_statuses),
-                'successful_modules': sum(1 for s in module_statuses.values() if s == 'success'),
-                'failed_modules': sum(1 for s in module_statuses.values() if s != 'success'),
-                'success_rate': sum(1 for s in module_statuses.values() if s == 'success') / max(1, len(module_statuses)), 
+                'total_modules': total_modules,
+                'successful_modules': successful_modules,
+                'failed_modules': total_modules - successful_modules,
+                'success_rate': success_rate,
                 'module_statuses': module_statuses
             },
             'resource_usage': {
                 'current_usage': {
-                    'current_mb': 50.0,  # Placeholder
+                    'current_mb': 50.0,  # Will be updated by performance monitor
                     'peak_mb': 50.0,
                     'cpu_percent': 0.0,
                     'elapsed_seconds': time.time() - start_time

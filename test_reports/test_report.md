@@ -1,0 +1,73 @@
+                             EXCEL ANALYSIS REPORT                              
+    File: tmp5atppj51.xlsx | Size: 0.01 MB | Generated: 2025-07-15 10:45:06     
+
+ EXECUTIVE SUMMARY
+
+## • Analysis Success Rate: 77.8%
+## • Quality Score: 0.1%
+## • Processing Time: 0.0s
+## • Total Sheets: 0
+## • Data Density: 0.0%
+
+ FILE INFORMATION
+
+  Name                : tmp5atppj51.xlsx
+  Size                : 0.01 MB
+  Path                : /tmp/tmp5atppj51.xlsx
+  Created             : 2025-07-15 10:45:06
+  Modified            : 2025-07-15 10:45:06
+  Excel Version       : 2007+
+  Compression Ratio   : 23.5%
+  File Signature      : Unknown
+
+ STRUCTURE ANALYSIS
+
+## --- Sheet Names ---
+
+- Test Sheet
+- Data Sheet
+
+ DATA QUALITY ANALYSIS
+
+  Overall Quality Score    : 0.1%
+  Data Completeness        : 0.0%
+  Data Consistency         : 0.0%
+  Data Accuracy            : 0.0%
+  Data Validity            : 0.0%
+
+ DETAILED SHEET ANALYSIS
+
+## Available sheets:
+- Test Sheet
+    Details unavailable due to analysis limitations
+- Data Sheet
+    Details unavailable due to analysis limitations
+
+ SECURITY ANALYSIS
+
+  Overall Security Score: 0.0%
+  Security Recommendations:
+    • Security posture appears adequate for current data classification
+
+ RECOMMENDATIONS
+
+  High Priority:
+    • [Data Quality] Review data quality issues and implement data validation
+    • [Data Cleanup] Perform comprehensive data cleanup and standardization
+
+ MODULE EXECUTION SUMMARY
+
+## +-----------------------+---------+--------------------------------+
+## | Module                | Status  | Details                        |
+## +-----------------------+---------+--------------------------------+
+## | health_checker        | SUCCESS | Completed successfully         |
+## | structure_mapper      | FAILED  | 'ReadOnlyWorksheet' object has |
+## | data_profiler         | FAILED  | 'ReadOnlyWorksheet' object has |
+## | formula_analyzer      | SUCCESS | Completed successfully         |
+## | visual_cataloger      | SUCCESS | Completed successfully         |
+## | security_inspector    | SUCCESS | Completed successfully         |
+## | dependency_mapper     | SUCCESS | Completed successfully         |
+## | relationship_analyzer | SUCCESS | Completed successfully         |
+## | performance_monitor   | SUCCESS | Completed successfully         |
+## +-----------------------+---------+--------------------------------+
+
