@@ -8,14 +8,17 @@ import threading
 import json
 import time
 import math
+import sys
+import os
 from pathlib import Path
 from datetime import datetime, timedelta
 import webbrowser
 from typing import Dict, Any, Optional
+from PIL import Image, ImageTk
 
-from analyzer import SimpleExcelAnalyzer
-from report_generator import ReportGenerator
-from structured_text_report import StructuredTextReportGenerator
+from src.core import SimpleExcelAnalyzer
+from src.reports import ReportGenerator
+from src.reports.structured_text_report import StructuredTextReportGenerator
 
 
 class CircularProgress(tk.Canvas):
@@ -190,11 +193,79 @@ class ExcelExplorerApp:
         self.root.minsize(1000, 700)
         self.root.configure(bg=ModernStyle.BACKGROUND)
         
+        # Set window icon for taskbar and title bar
+        try:
+            # Get paths to both logo versions
+            logo_no_bg_path = Path(__file__).parent.parent.parent / "assets" / "logos" / "logo_1_no_bg.png"
+            logo_with_bg_path = Path(__file__).parent.parent.parent / "assets" / "logos" / "icon_bg.png"
+            
+            if logo_no_bg_path.exists():
+                # Windows-specific: Set application ID for taskbar grouping
+                if sys.platform == "win32":
+                    try:
+                        import ctypes
+                        # Set application user model ID for proper taskbar icon
+                        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ExcelExplorer.App.1.0")
+                    except Exception:
+                        pass
+                
+                # Load the no-background logo for title bar and GUI
+                icon_image_no_bg = Image.open(logo_no_bg_path)
+                
+                # Create multiple sizes for title bar (no background)
+                icon_sizes = [16, 32, 48, 64]
+                self.icons = []
+                
+                for size in icon_sizes:
+                    resized_icon = icon_image_no_bg.resize((size, size), Image.Resampling.LANCZOS)
+                    photo_icon = ImageTk.PhotoImage(resized_icon)
+                    self.icons.append(photo_icon)
+                
+                # Set the no-background icon for title bar
+                self.root.iconphoto(True, *self.icons)
+                
+                # Windows-specific taskbar icon handling with background
+                if sys.platform == "win32" and logo_with_bg_path.exists():
+                    try:
+                        # Use the background version for taskbar
+                        taskbar_icon_image = Image.open(logo_with_bg_path)
+                        
+                        # Convert to ICO format for Windows taskbar
+                        import tempfile
+                        with tempfile.NamedTemporaryFile(suffix='.ico', delete=False) as tmp_ico:
+                            # Create ICO with multiple sizes using background version
+                            taskbar_icon_image.save(tmp_ico.name, format='ICO', sizes=[(16,16), (32,32), (48,48), (64,64)])
+                            self.root.iconbitmap(tmp_ico.name)
+                            # Clean up temp file after a delay
+                            self.root.after(1000, lambda: self._cleanup_temp_file(tmp_ico.name))
+                    except Exception as e:
+                        print(f"Windows taskbar ICO handling failed: {e}")
+                        # Fallback to no-background version for taskbar
+                        try:
+                            import tempfile
+                            with tempfile.NamedTemporaryFile(suffix='.ico', delete=False) as tmp_ico:
+                                icon_image_no_bg.save(tmp_ico.name, format='ICO', sizes=[(16,16), (32,32), (48,48), (64,64)])
+                                self.root.iconbitmap(tmp_ico.name)
+                                self.root.after(1000, lambda: self._cleanup_temp_file(tmp_ico.name))
+                        except Exception as fallback_e:
+                            print(f"Fallback ICO handling also failed: {fallback_e}")
+                        
+        except Exception as e:
+            print(f"Failed to set window icon: {e}")
+        
         # Center window
         self.root.update_idletasks()
         x = (self.root.winfo_screenwidth() // 2) - (1400 // 2)
         y = (self.root.winfo_screenheight() // 2) - (900 // 2)
         self.root.geometry(f"1400x900+{x}+{y}")
+    
+    def _cleanup_temp_file(self, filepath):
+        """Clean up temporary ICO file"""
+        try:
+            if os.path.exists(filepath):
+                os.unlink(filepath)
+        except Exception:
+            pass
         
     def setup_variables(self):
         """Initialize tkinter variables"""
@@ -238,21 +309,41 @@ class ExcelExplorerApp:
         header_frame = ttk.Frame(parent)
         header_frame.pack(fill=tk.X, pady=(0, 20))
         
-        # Title with icon
+        # Title with logo
         title_frame = ttk.Frame(header_frame)
         title_frame.pack(anchor=tk.W)
         
+        # Add logo image
+        try:
+            logo_path = Path(__file__).parent.parent.parent / "assets" / "logos" / "logo_1_no_bg.png"
+            if logo_path.exists():
+                # Load and resize logo for header
+                logo_image = Image.open(logo_path)
+                # Resize to fit header (keeping aspect ratio)
+                logo_image = logo_image.resize((80, 80), Image.Resampling.LANCZOS)
+                self.logo = ImageTk.PhotoImage(logo_image)
+                
+                # Display logo
+                logo_label = ttk.Label(title_frame, image=self.logo)
+                logo_label.pack(side=tk.LEFT, padx=(0, 15))
+        except Exception as e:
+            print(f"Failed to load logo: {e}")
+        
+        # Title text (without emoji since we have the actual logo)
+        title_container = ttk.Frame(title_frame)
+        title_container.pack(side=tk.LEFT, fill=tk.Y)
+        
         title_label = ttk.Label(
-            title_frame, 
-            text="📊 Excel Explorer",
+            title_container, 
+            text="Excel Explorer",
             font=ModernStyle.FONT_TITLE,
             foreground=ModernStyle.PRIMARY
         )
-        title_label.pack(side=tk.LEFT)
+        title_label.pack(anchor=tk.W)
         
         # Subtitle
         subtitle_label = ttk.Label(
-            header_frame,
+            title_container,
             text="Advanced Excel file analysis with real-time progress tracking and comprehensive reporting",
             font=ModernStyle.FONT_BODY,
             foreground=ModernStyle.TEXT_SECONDARY
@@ -800,20 +891,26 @@ class ExcelExplorerApp:
             messagebox.showwarning("Report Not Found", "No exported report available to open.")
 
     def _auto_export_report(self, results: Dict[str, Any]):
-        """Automatically export HTML report to reports folder"""
+        """Automatically export HTML report to output/reports folder"""
         try:
-            reports_dir = Path(__file__).resolve().parent / "reports"
-            reports_dir.mkdir(exist_ok=True)
+            # Use output/reports directory relative to project root
+            project_root = Path(__file__).resolve().parent.parent.parent
+            reports_dir = project_root / "output" / "reports"
+            reports_dir.mkdir(parents=True, exist_ok=True)
+            
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             base_name = Path(self.selected_file.get()).stem if self.selected_file.get() else "report"
             file_name = f"{base_name}_{timestamp}.html"
             output_path = reports_dir / file_name
+            
             report_generator = ReportGenerator()
-            report_generator.generate_html_report(results, output_path)
+            report_generator.generate_html_report(results, str(output_path))
             self.auto_report_path = str(output_path)
+            
             # Enable open button
             self.open_report_btn.config(state=tk.NORMAL)
             self.log_message(f"💾 Report automatically exported to: {output_path}")
+            
         except Exception as e:
             self.log_message(f"⚠️ Auto-export failed: {e}")
 
@@ -857,10 +954,17 @@ class ExcelExplorerApp:
             return
             
         try:
+            # Suggest filename based on analyzed file
+            suggested_name = "report.txt"
+            if self.selected_file.get():
+                file_path = Path(self.selected_file.get())
+                suggested_name = f"{file_path.stem}_report.txt"
+            
             # Ask user for save location
             output_file = filedialog.asksaveasfilename(
                 title="Export Text Report",
                 defaultextension=".txt",
+                initialfile=suggested_name,
                 filetypes=[
                     ('Text files', '*.txt'),
                     ('All files', '*.*')
@@ -886,10 +990,17 @@ class ExcelExplorerApp:
             return
             
         try:
+            # Suggest filename based on analyzed file
+            suggested_name = "report.md"
+            if self.selected_file.get():
+                file_path = Path(self.selected_file.get())
+                suggested_name = f"{file_path.stem}_report.md"
+            
             # Ask user for save location
             output_file = filedialog.asksaveasfilename(
                 title="Export Markdown Report",
                 defaultextension=".md",
+                initialfile=suggested_name,
                 filetypes=[
                     ('Markdown files', '*.md'),
                     ('All files', '*.*')
@@ -898,8 +1009,10 @@ class ExcelExplorerApp:
             
             if output_file:
                 text_report_generator = StructuredTextReportGenerator()
-                report_text = text_report_generator.generate_report(self.current_results)
-                text_report_generator.export_to_file(report_text, output_file, 'md')
+                file_info = self.current_results.get('file_info', {})
+                title = f"Excel Analysis Report - {file_info.get('name', 'Unknown File')}"
+                report_text = text_report_generator.generate_markdown_report(self.current_results, title)
+                text_report_generator.export_to_file(report_text, output_file, 'markdown')
                 
                 self.log_message(f"💾 Markdown report exported to: {output_file}")
                 messagebox.showinfo("Export Complete", f"Markdown report exported successfully to:\n{output_file}")
@@ -992,12 +1105,10 @@ class ExcelExplorerApp:
         self.log_text.see(tk.END)
 
 
-def main():
-    """Launch the enhanced GUI application"""
+if __name__ == "__main__":
+    """Direct execution - redirect to main.py"""
+    print("⚠️  Direct execution deprecated. Use: python main.py")
+    print("Launching GUI mode...")
     root = tk.Tk()
     app = ExcelExplorerApp(root)
     root.mainloop()
-
-
-if __name__ == "__main__":
-    main()

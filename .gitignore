@@ -84,7 +84,10 @@ tmp/
 temp/
 
 .claude/
-reports/
 *.backup
 debuggers
 excel_explorer_enhanced_report.html
+docs/*
+!docs/DETAILED_DOCUMENTATION.md
+cleanup/
+assets/reference_logos/

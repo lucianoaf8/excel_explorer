@@ -1,27 +1,18 @@
 #!/usr/bin/env python3
 """
-Excel Explorer v2.0 - GUI Entry Point
+Excel Explorer v2.0 - Entry Point
+Launch script for the reorganized package structure
 """
 
-import tkinter as tk
-from excel_explorer_gui import ExcelExplorerApp
+import sys
+from pathlib import Path
 
+# Add src to Python path
+src_path = Path(__file__).parent / "src"
+sys.path.insert(0, str(src_path))
 
-def main():
-    """Launch GUI application"""
-    try:
-        root = tk.Tk()
-        app = ExcelExplorerApp(root)
-        root.mainloop()
-    except ImportError as e:
-        print(f"Import failed: {e}")
-        print("Install: pip install openpyxl")
-        return 1
-    except Exception as e:
-        print(f"Startup failed: {e}")
-        return 1
-    return 0
-
+# Import and run main
+from src.main import main
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

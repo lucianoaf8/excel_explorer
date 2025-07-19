@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Callable, List, Set
 import time
 import re
-import yaml
 from datetime import datetime
 import os
 import zipfile
@@ -18,13 +17,16 @@ import threading
 from collections import defaultdict, Counter
 from statistics import mean, median, stdev
 
+from .config_manager import ConfigManager
+
 
 class SimpleExcelAnalyzer:
     """Streamlined Excel analysis without framework complexity"""
     
     def __init__(self, config_path: str = "config.yaml"):
         self.progress_callback: Optional[Callable] = None
-        self.config: Dict[str, Any] = self._load_config(config_path)
+        self.config_manager = ConfigManager()
+        self.config: Dict[str, Any] = self.config_manager.load_config(config_path)
         
     def analyze(self, file_path: str, progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
         """Single method for complete Excel analysis"""
@@ -136,17 +138,6 @@ class SimpleExcelAnalyzer:
     # ------------------------------------------------------------------ #
     # Configuration loading                                              #
     # ------------------------------------------------------------------ #
-    def _load_config(self, config_path: str) -> Dict[str, Any]:
-        """Load YAML configuration file. Returns empty dict on failure."""
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                return yaml.safe_load(f) or {}
-        except FileNotFoundError:
-            return {}
-        except Exception as e:
-            # Do not raise – fall back to defaults
-            print(f"[Config] Failed to load {config_path}: {e}")
-            return {}
     
     def _get_file_info(self, file_path: str, wb) -> Dict[str, Any]:
         """Extract comprehensive file information with metadata"""
