@@ -12,6 +12,7 @@ from datetime import datetime
 from core import ConfigManager, SimpleExcelAnalyzer
 from reports import ReportGenerator
 from reports.structured_text_report import StructuredTextReportGenerator
+from reports.comprehensive_text_report import ComprehensiveTextReportGenerator
 
 
 class CLIProgressCallback:
@@ -127,9 +128,13 @@ def run_cli_analysis(
         elif format_type in ['text', 'markdown']:
             ext = 'md' if format_type == 'markdown' else 'txt'
             output_file = output_dir / f"{base_name}.{ext}"
-            generator = StructuredTextReportGenerator()
-            report_text = generator.generate_report(results)
-            generator.export_to_file(report_text, str(output_file), format_type)
+            generator = ComprehensiveTextReportGenerator()
+            if format_type == 'markdown':
+                final_output = generator.generate_markdown_report(results, str(output_file))
+            else:
+                final_output = generator.generate_text_report(results, str(output_file))
+            # Generator writes directly to file, so update output_file variable
+            output_file = Path(final_output)
         
         else:
             print(f"Error: Unsupported format type: {format_type}")

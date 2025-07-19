@@ -495,7 +495,7 @@ class FixedComprehensiveReportGenerator:
                     </div>
                     <div class="metric">
                         <span class="metric-label">Compression Ratio</span>
-                        <span class="metric-value">{file_info.get('compression_ratio', 0) * 100:.1f}%</span>
+                        <span class="metric-value">{file_info.get('compression_ratio', 0):.1f}%</span>
                     </div>
                 </div>
             </div>
@@ -511,9 +511,9 @@ class FixedComprehensiveReportGenerator:
             sheet_details = structure.get('sheet_details', [])
             workbook_features = structure.get('workbook_features', {})
             
-            # Generate sheet overview table
+            # Generate sheet overview table - show ALL sheets
             sheet_rows = ""
-            for sheet in sheet_details[:10]:  # Show first 10 sheets
+            for sheet in sheet_details:  # Show ALL sheets, not just first 10
                 sheet_name = sheet.get('name', 'Unknown')
                 max_row = sheet.get('max_row', 1000)
                 max_col = sheet.get('max_column', 20)
@@ -635,14 +635,15 @@ class FixedComprehensiveReportGenerator:
             date_pct = (data_type_dist.get('date', 0) / total_values) * 100
             blank_pct = (data_type_dist.get('blank', 0) / total_values) * 100
             
-            # Cross-sheet relationships
+            # Cross-sheet relationships - show ALL relationships with proper key columns
             relationship_rows = ""
             if relationships and not relationships.get('skipped', False):
                 relationships_found = relationships.get('relationships_found', [])
-                for rel in relationships_found[:10]:  # Show first 10
+                for rel in relationships_found:  # Show ALL relationships, not just first 10
                     source = rel.get('source_sheet', 'Unknown')
                     target = rel.get('target_sheet', 'Unknown')
-                    key_cols = ', '.join(rel.get('potential_keys', [])[:5])  # First 5 columns
+                    # Use key_columns from the relationship data
+                    key_cols = ', '.join(rel.get('key_columns', []))
                     match_rate = rel.get('match_rate', 0) * 100
                     
                     # Determine badge color based on match rate
@@ -655,7 +656,7 @@ class FixedComprehensiveReportGenerator:
                     
                     relationship_rows += f"""
                     <tr>
-                        <td>potential_join</td>
+                        <td>{rel.get('relationship_type', 'potential_join')}</td>
                         <td>{source}</td>
                         <td>{target}</td>
                         <td>{key_cols}</td>
@@ -754,15 +755,17 @@ class FixedComprehensiveReportGenerator:
                 return '<div class="card"><h3>📄 Sheet Analysis</h3><p>No sheet analysis data available.</p></div>'
             
             content = ""
-            for sheet_name, sheet_data in list(sheet_analysis.items())[:10]:  # Show first 10 sheets
+            for sheet_name, sheet_data in sheet_analysis.items():  # Show ALL sheets
                 columns = sheet_data.get('columns', [])
                 dimensions = sheet_data.get('dimensions', '0x0')
                 estimated_data_cells = sheet_data.get('estimated_data_cells', 0)
+                boundaries = sheet_data.get('boundaries', {})
+                sheet_properties = sheet_data.get('sheet_properties', {})
                 
                 # Generate column analysis
                 column_rows = ""
-                for i, col in enumerate(columns[:10]):  # Show first 10 columns
-                    col_letter = col.get('letter', chr(65 + i))  # A, B, C, etc.
+                for col in columns[:15]:  # Show first 15 columns for better coverage
+                    col_letter = col.get('letter', '')
                     data_type = col.get('data_type', 'unknown')
                     fill_rate = col.get('fill_rate', 0) * 100
                     unique_count = col.get('unique_values', 0)
@@ -775,6 +778,31 @@ class FixedComprehensiveReportGenerator:
                         <td>{unique_count:,}</td>
                     </tr>
                     """
+                
+                # Generate headers preview
+                headers_preview = []
+                for col in columns[:8]:  # Show first 8 headers
+                    header = col.get('header', f"Column {col.get('letter', '')}")
+                    headers_preview.append(header)
+                headers_text = ' | '.join(headers_preview) if headers_preview else 'No headers available'
+                
+                # Generate sample data (first 3 rows)
+                sample_rows = ""
+                for row_idx in range(3):
+                    row_cells = []
+                    for col in columns[:5]:  # Show first 5 columns for sample data
+                        sample_values = col.get('sample_values', [])
+                        if row_idx < len(sample_values):
+                            value = str(sample_values[row_idx])[:20]  # Truncate long values
+                        else:
+                            value = ''
+                        row_cells.append(value)
+                    
+                    if any(row_cells):  # Only show row if it has data
+                        sample_rows += f"<tr><td>{'</td><td>'.join(row_cells)}</td></tr>"
+                
+                if not sample_rows:
+                    sample_rows = '<tr><td colspan="5">No sample data available</td></tr>'
                 
                 # Determine status badge
                 if estimated_data_cells > 100000:
@@ -790,6 +818,25 @@ class FixedComprehensiveReportGenerator:
                     </summary>
                     <div class="expandable-content">
                         <div class="grid-2">
+                            <div>
+                                <h4>📋 Headers Preview</h4>
+                                <div class="sample-data">
+                                    {headers_text}
+                                </div>
+                                
+                                <h4>🔍 Sample Data (First 3 Rows)</h4>
+                                <div class="table-container">
+                                    <table style="font-size: 0.8rem;">
+                                        <thead>
+                                            <tr>{''.join(f'<th>{h}</th>' for h in headers_preview[:5])}</tr>
+                                        </thead>
+                                        <tbody>
+                                            {sample_rows}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
                             <div>
                                 <h4>📊 Column Analysis</h4>
                                 <div class="table-container">
@@ -807,9 +854,7 @@ class FixedComprehensiveReportGenerator:
                                         </tbody>
                                     </table>
                                 </div>
-                            </div>
-                            
-                            <div>
+                                
                                 <h4>⚙️ Sheet Properties</h4>
                                 <div class="metric">
                                     <span class="metric-label">Dimensions</span>
@@ -821,15 +866,15 @@ class FixedComprehensiveReportGenerator:
                                 </div>
                                 <div class="metric">
                                     <span class="metric-label">Protection</span>
-                                    <span class="badge success">None</span>
+                                    <span class="badge {'warning' if sheet_properties.get('protected', False) else 'success'}">{'Protected' if sheet_properties.get('protected', False) else 'None'}</span>
                                 </div>
                                 <div class="metric">
                                     <span class="metric-label">Comments</span>
-                                    <span class="badge info">0</span>
+                                    <span class="badge info">{boundaries.get('comments', 0)}</span>
                                 </div>
                                 <div class="metric">
                                     <span class="metric-label">Hyperlinks</span>
-                                    <span class="badge info">0</span>
+                                    <span class="badge info">{boundaries.get('hyperlinks', 0)}</span>
                                 </div>
                             </div>
                         </div>

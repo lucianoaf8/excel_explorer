@@ -19,6 +19,7 @@ from PIL import Image, ImageTk
 from src.core import SimpleExcelAnalyzer
 from src.reports import ReportGenerator
 from src.reports.structured_text_report import StructuredTextReportGenerator
+from src.reports.comprehensive_text_report import ComprehensiveTextReportGenerator
 
 
 class CircularProgress(tk.Canvas):
@@ -972,12 +973,20 @@ class ExcelExplorerApp:
             )
             
             if output_file:
-                text_report_generator = StructuredTextReportGenerator()
-                report_text = text_report_generator.generate_report(self.current_results)
-                text_report_generator.export_to_file(report_text, output_file, 'txt')
+                # Use comprehensive text report generator
+                text_report_generator = ComprehensiveTextReportGenerator()
+                text_report_generator.generate_text_report(self.current_results, output_file)
                 
                 self.log_message(f"💾 Text report exported to: {output_file}")
-                messagebox.showinfo("Export Complete", f"Text report exported successfully to:\n{output_file}")
+                
+                # Ask if user wants to open the file
+                open_file = messagebox.askyesno(
+                    "Export Complete", 
+                    f"Text report exported successfully to:\n{output_file}\n\nWould you like to open the file?"
+                )
+                
+                if open_file:
+                    self._open_file_in_system(output_file)
                     
         except Exception as e:
             self.log_message(f"❌ Text export failed: {e}")
@@ -1008,18 +1017,46 @@ class ExcelExplorerApp:
             )
             
             if output_file:
-                text_report_generator = StructuredTextReportGenerator()
-                file_info = self.current_results.get('file_info', {})
-                title = f"Excel Analysis Report - {file_info.get('name', 'Unknown File')}"
-                report_text = text_report_generator.generate_markdown_report(self.current_results, title)
-                text_report_generator.export_to_file(report_text, output_file, 'markdown')
+                # Use comprehensive text report generator
+                text_report_generator = ComprehensiveTextReportGenerator()
+                text_report_generator.generate_markdown_report(self.current_results, output_file)
                 
                 self.log_message(f"💾 Markdown report exported to: {output_file}")
-                messagebox.showinfo("Export Complete", f"Markdown report exported successfully to:\n{output_file}")
+                
+                # Ask if user wants to open the file
+                open_file = messagebox.askyesno(
+                    "Export Complete", 
+                    f"Markdown report exported successfully to:\n{output_file}\n\nWould you like to open the file?"
+                )
+                
+                if open_file:
+                    self._open_file_in_system(output_file)
                     
         except Exception as e:
             self.log_message(f"❌ Markdown export failed: {e}")
             messagebox.showerror("Export Error", f"Failed to export markdown report: {e}")
+    
+    def _open_file_in_system(self, file_path: str):
+        """Open a file using the system's default application"""
+        try:
+            file_path = Path(file_path)
+            if not file_path.exists():
+                messagebox.showerror("File Not Found", f"The file does not exist:\n{file_path}")
+                return
+                
+            # Use different commands based on the operating system
+            if sys.platform == 'win32':
+                os.startfile(str(file_path))
+            elif sys.platform == 'darwin':  # macOS
+                os.system(f'open "{file_path}"')
+            else:  # Linux and others
+                os.system(f'xdg-open "{file_path}"')
+                
+            self.log_message(f"📄 Opened file: {file_path.name}")
+            
+        except Exception as e:
+            self.log_message(f"❌ Failed to open file: {e}")
+            messagebox.showerror("Open Error", f"Failed to open file:\n{e}")
     
     def _search_report(self):
         """Search for text in the report"""

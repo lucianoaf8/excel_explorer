@@ -483,11 +483,11 @@ class SimpleExcelAnalyzer:
             # Enhanced sampling strategy
             sample_rows = min(self.config.get('analysis', {}).get('sample_rows', 100), ws.max_row)
             
-            # For very large sheets, be more conservative
+            # For very large sheets, be more conservative but still get good coverage
             if ws.max_row > 100000 or ws.max_column > 100:
-                sample_rows = min(25, sample_rows)  # Reduce to 25 rows for very large sheets
+                sample_rows = min(50, sample_rows)  # Increase to 50 rows for better analysis
             elif ws.max_row > 10000 or ws.max_column > 50:
-                sample_rows = min(50, sample_rows)  # Reduce to 50 rows for large sheets
+                sample_rows = min(75, sample_rows)  # Increase to 75 rows for large sheets
             
             # Comprehensive header analysis
             header_map = self._extract_sheet_headers(ws)
@@ -765,8 +765,8 @@ class SimpleExcelAnalyzer:
         overall_type_distribution = Counter()
         start_time = time.time()
         
-        # Limit columns to avoid processing too many
-        max_columns = min(ws.max_column, 100) if ws.max_column else 100
+        # Limit columns to avoid processing too many but ensure good coverage
+        max_columns = min(ws.max_column, 200) if ws.max_column else 200
 
         for row_idx, row in enumerate(ws.iter_rows(max_row=max_rows, max_col=max_columns, values_only=True), start=1):
             if time.time() - start_time > timeout_sec:
@@ -1076,14 +1076,19 @@ class SimpleExcelAnalyzer:
             sheet_analysis = data_analysis.get('sheet_analysis', {})
             potential_keys = data_analysis.get('cross_sheet_analysis', {}).get('potential_keys', {})
             
-            # Find relationships between sheets
+            # Find relationships between sheets - comprehensive analysis
             sheet_names = list(sheet_analysis.keys())
+            
+            # Check ALL possible pairs of sheets, not just adjacent ones
             for i, sheet1 in enumerate(sheet_names):
-                for sheet2 in sheet_names[i+1:]:
-                    relationship = self._find_sheet_relationship(sheet1, sheet2, sheet_analysis, potential_keys)
-                    if relationship:
-                        relationships['relationships_found'].append(relationship)
-        except:
+                for j, sheet2 in enumerate(sheet_names):
+                    if i != j:  # Don't compare sheet with itself
+                        relationship = self._find_sheet_relationship(sheet1, sheet2, sheet_analysis, potential_keys)
+                        if relationship:
+                            relationships['relationships_found'].append(relationship)
+        except Exception as e:
+            # Log the error but don't fail completely
+            print(f"Error in relationship analysis: {e}")
             pass
         
         return relationships
@@ -1100,13 +1105,36 @@ class SimpleExcelAnalyzer:
             
             common_columns = sheet1_columns.intersection(sheet2_columns)
             
+            # Enhanced relationship detection - find ALL common columns
             if common_columns:
+                # Sort common columns for consistent ordering
+                sorted_common = sorted(list(common_columns))
+                
+                # Find high-priority key columns
+                key_patterns = ['id', 'key', 'code', 'number', 'name', 'contractor', 'client']
+                high_priority_keys = []
+                other_keys = []
+                
+                for col_name in sorted_common:
+                    if any(keyword in col_name.lower() for keyword in key_patterns):
+                        high_priority_keys.append(col_name)
+                    else:
+                        other_keys.append(col_name)
+                
+                # Combine with high priority first
+                all_common_keys = high_priority_keys + other_keys
+                
+                # Calculate match rate based on common columns vs total unique columns
+                total_unique_columns = len(sheet1_columns.union(sheet2_columns))
+                match_rate = len(common_columns) / max(total_unique_columns, 1)
+                
                 return {
                     'source_sheet': sheet1,
                     'target_sheet': sheet2,
                     'relationship_type': 'potential_join',
-                    'key_columns': list(common_columns),
-                    'match_rate': len(common_columns) / max(len(sheet1_columns), len(sheet2_columns))
+                    'key_columns': all_common_keys,  # Show ALL common columns
+                    'potential_keys': all_common_keys,
+                    'match_rate': match_rate
                 }
         except:
             pass
