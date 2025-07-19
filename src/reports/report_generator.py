@@ -766,6 +766,7 @@ class FixedComprehensiveReportGenerator:
                 column_rows = ""
                 for col in columns[:15]:  # Show first 15 columns for better coverage
                     col_letter = col.get('letter', '')
+                    col_header = col.get('header', f'Column {col_letter}')
                     data_type = col.get('data_type', 'unknown')
                     fill_rate = col.get('fill_rate', 0) * 100
                     unique_count = col.get('unique_values', 0)
@@ -773,6 +774,7 @@ class FixedComprehensiveReportGenerator:
                     column_rows += f"""
                     <tr>
                         <td>{col_letter}</td>
+                        <td>{col_header}</td>
                         <td><span class="data-type {data_type}">{data_type}</span></td>
                         <td>{fill_rate:.1f}%</td>
                         <td>{unique_count:,}</td>
@@ -844,6 +846,7 @@ class FixedComprehensiveReportGenerator:
                                         <thead>
                                             <tr>
                                                 <th>Column</th>
+                                                <th>Header</th>
                                                 <th>Type</th>
                                                 <th>Fill Rate</th>
                                                 <th>Unique Values</th>

@@ -565,7 +565,7 @@ class SimpleExcelAnalyzer:
                 'data_density': data_cells / sheet_cells if sheet_cells > 0 else 0,
                 'boundaries': self._analyze_data_boundaries(ws),
                 'sheet_properties': self._analyze_sheet_properties(ws),
-                'columns': sorted(columns_summary, key=lambda c: c['letter']),
+                'columns': sorted(columns_summary, key=lambda c: c['number']),
                 'data_quality_metrics': sheet_metrics,
                 'duplicate_rows': duplicate_info,
                 'stream_stats': self._analyze_data_streaming(ws, self.config.get('analysis', {}).get('max_sample_rows', 1000)) if ws.max_row > sample_rows else {}

@@ -279,16 +279,17 @@ class ComprehensiveTextReportGenerator:
                 
                 # Column analysis table
                 lines.append("Column Analysis:")
-                lines.append(f"  {'Column':<8} {'Type':<10} {'Fill Rate':>10} {'Unique':>10}")
-                lines.append("  " + "-" * 40)
+                lines.append(f"  {'Column':<8} {'Header':<20} {'Type':<10} {'Fill Rate':>10} {'Unique':>10}")
+                lines.append("  " + "-" * 60)
                 
                 for col in columns[:10]:  # First 10 columns
                     letter = col.get('letter', '')
+                    header = col.get('header', f'Column {letter}')[:20]  # Truncate long headers
                     data_type = col.get('data_type', 'unknown')
                     fill_rate = col.get('fill_rate', 0) * 100
                     unique = col.get('unique_values', 0)
                     
-                    lines.append(f"  {letter:<8} {data_type:<10} {fill_rate:>9.1f}% {unique:>10,}")
+                    lines.append(f"  {letter:<8} {header:<20} {data_type:<10} {fill_rate:>9.1f}% {unique:>10,}")
             
             lines.append("")
         
@@ -660,16 +661,17 @@ class ComprehensiveTextReportGenerator:
                 # Column analysis
                 lines.append("**Column Analysis:**")
                 lines.append("")
-                lines.append("| Column | Type | Fill Rate | Unique Values |")
-                lines.append("|--------|------|-----------|---------------|")
+                lines.append("| Column | Header | Type | Fill Rate | Unique Values |")
+                lines.append("|--------|--------|------|-----------|---------------|")
                 
                 for col in columns[:10]:  # First 10 columns
                     letter = col.get('letter', '')
+                    header = col.get('header', f'Column {letter}')
                     data_type = col.get('data_type', 'unknown')
                     fill_rate = col.get('fill_rate', 0) * 100
                     unique = col.get('unique_values', 0)
                     
-                    lines.append(f"| {letter} | {data_type} | {fill_rate:.1f}% | {unique:,} |")
+                    lines.append(f"| {letter} | {header} | {data_type} | {fill_rate:.1f}% | {unique:,} |")
                 
                 lines.append("")
         
