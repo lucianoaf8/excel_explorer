@@ -44,7 +44,14 @@ class ConfigManager:
         # Determine config file path with priority:
         # 1. Explicit argument, 2. Environment variable, 3. Default
         if config_path:
-            config_file_path = config_path
+            # Check if it's just the filename without path
+            config_file = Path(config_path)
+            if config_path == 'config.yaml' and not config_file.exists():
+                # Look in the standard config directory
+                current_dir = Path(__file__).parent.parent.parent
+                config_file_path = str(current_dir / "config" / "config.yaml")
+            else:
+                config_file_path = config_path
         elif os.getenv('EXCEL_EXPLORER_CONFIG'):
             config_file_path = os.getenv('EXCEL_EXPLORER_CONFIG')
         else:

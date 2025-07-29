@@ -261,9 +261,9 @@ class ComprehensiveTextReportGenerator:
                 lines.append("  " + " | ".join(headers))
                 lines.append("")
                 
-                # Sample data (first 3 rows)
-                lines.append("Sample Data (First 3 Rows):")
-                for row_idx in range(3):
+                # Sample data (first 10 rows)
+                lines.append("Sample Data (First 10 Rows):")
+                for row_idx in range(10):
                     row_data = []
                     for col in columns[:5]:  # First 5 columns
                         sample_values = col.get('sample_values', [])
@@ -455,6 +455,7 @@ class ComprehensiveTextReportGenerator:
         lines.append("6. [Security Analysis](#security-analysis)")
         lines.append("7. [Recommendations](#recommendations)")
         lines.append("8. [Module Execution Status](#module-execution-status)")
+        lines.append("9. [LLM Automation Guide](#llm-automation-guide)")
         lines.append("")
         
         # 1. Overview
@@ -496,6 +497,11 @@ class ComprehensiveTextReportGenerator:
         lines.append("## 🔧 Module Execution Status")
         lines.append("")
         lines.extend(self._create_markdown_execution_status(exec_summary))
+        
+        # 9. LLM Automation Instructions
+        lines.append("## 🤖 LLM Automation Guide")
+        lines.append("")
+        lines.extend(self._create_markdown_automation_instructions(results))
         
         return '\n'.join(lines)
     
@@ -635,7 +641,7 @@ class ComprehensiveTextReportGenerator:
                 lines.append("")
                 
                 # Sample data
-                lines.append("**Sample Data (First 3 Rows):**")
+                lines.append("**Sample Data (First 10 Rows):**")
                 lines.append("")
                 
                 # Create sample data table
@@ -643,7 +649,7 @@ class ComprehensiveTextReportGenerator:
                 lines.append("| " + " | ".join(header_row) + " |")
                 lines.append("|" + "|".join(["-" * 17 for _ in header_row]) + "|")
                 
-                for row_idx in range(3):
+                for row_idx in range(10):
                     row_data = []
                     for col in columns[:5]:
                         sample_values = col.get('sample_values', [])
@@ -661,8 +667,8 @@ class ComprehensiveTextReportGenerator:
                 # Column analysis
                 lines.append("**Column Analysis:**")
                 lines.append("")
-                lines.append("| Column | Header | Type | Fill Rate | Unique Values |")
-                lines.append("|--------|--------|------|-----------|---------------|")
+                lines.append("| Column | Header | Type | Fill Rate | Unique Values | Sample Values |")
+                lines.append("|--------|--------|------|-----------|---------------|---------------|")
                 
                 for col in columns[:10]:  # First 10 columns
                     letter = col.get('letter', '')
@@ -671,8 +677,46 @@ class ComprehensiveTextReportGenerator:
                     fill_rate = col.get('fill_rate', 0) * 100
                     unique = col.get('unique_values', 0)
                     
-                    lines.append(f"| {letter} | {header} | {data_type} | {fill_rate:.1f}% | {unique:,} |")
+                    # Sample values extraction and formatting  
+                    sample_values = col.get('sample_values', [])[:10]  # First 10 unique values
+                    sample_text = ', '.join(str(v)[:15] for v in sample_values) if sample_values else 'N/A'
+                    
+                    lines.append(f"| {letter} | {header} | {data_type} | {fill_rate:.1f}% | {unique:,} | {sample_text} |")
                 
+                lines.append("")
+                
+                # Data Quality Issues
+                quality_metrics = sheet_data.get('data_quality_metrics', {})
+                duplicate_info = sheet_data.get('duplicate_rows', {})
+
+                lines.append("")
+                lines.append("**Data Quality Issues:**")
+                lines.append("")
+
+                # Duplicate rows
+                duplicate_count = duplicate_info.get('count', 0)
+                duplicate_pct = duplicate_info.get('percentage', 0)
+                if duplicate_count > 0:
+                    lines.append(f"- **Duplicate Rows**: {duplicate_count} ({duplicate_pct:.1f}%)")
+
+                # Outliers from column data
+                outlier_columns = []
+                for col in columns:
+                    outliers = col.get('outliers', [])
+                    if outliers:
+                        outlier_columns.append(f"Column {col.get('letter', '')}: {len(outliers)} outliers")
+
+                if outlier_columns:
+                    lines.append(f"- **Outliers Detected**: {', '.join(outlier_columns[:3])}")
+
+                # Data quality issues
+                total_issues = sum(col.get('data_quality_issues', 0) for col in columns)
+                if total_issues > 0:
+                    lines.append(f"- **Data Quality Issues**: {total_issues} cells with errors")
+
+                if not duplicate_count and not outlier_columns and not total_issues:
+                    lines.append("- **No Major Issues**: Data quality appears good")
+
                 lines.append("")
         
         return lines
@@ -817,6 +861,73 @@ class ComprehensiveTextReportGenerator:
                 lines.append(f"| {module_name} | {status_icon} {status.title()} |")
         
         lines.append("")
+        return lines
+    
+    def _create_markdown_automation_instructions(self, results: Dict[str, Any]) -> List[str]:
+        """Create LLM automation instructions section"""
+        lines = []
+      
+        # Extract key data for instructions
+        file_info = results.get('file_info', {})
+        structure = results.get('module_results', {}).get('structure_mapper', {})
+        data_profiler = results.get('module_results', {}).get('data_profiler', {})
+        relationships = results.get('module_results', {}).get('relationship_analyzer', {})
+      
+        sheet_count = structure.get('total_sheets', 0)
+        sheet_analysis = data_profiler.get('sheet_analysis', {})
+        relationships_found = relationships.get('relationships_found', []) if not relationships.get('skipped', False) else []
+      
+        lines.append("### How to Use This Report for Automation")
+        lines.append("")
+        lines.append("**File Structure:**")
+        lines.append(f"- **{sheet_count} sheets** with detailed column analysis in Section 4")
+        lines.append(f"- **{len(relationships_found)} potential relationships** identified in Section 5")
+        lines.append("")
+      
+        lines.append("**Schema Extraction:**")
+        lines.append("- Column types are classified as: `numeric`, `text`, `date`, `boolean`, `blank`")
+        lines.append("- Fill rates indicate data completeness per column")
+        lines.append("- Sample values show actual data patterns for each field")
+        lines.append("")
+      
+        lines.append("**Automation Recommendations:**")
+        # Generate smart recommendations based on the data
+        if relationships_found:
+            lines.append("- **Data Joining**: Cross-sheet relationships identified - review Section 5 for join keys")
+      
+        # Check for potential automation scenarios
+        high_fill_columns = []
+        for sheet_name, sheet_data in sheet_analysis.items():
+            columns = sheet_data.get('columns', [])
+            for col in columns:
+                if col.get('fill_rate', 0) > 0.95 and col.get('unique_values', 0) > 10:
+                    high_fill_columns.append(f"{sheet_name}.{col.get('header', '')}")
+      
+        if high_fill_columns:
+            lines.append(f"- **Key Fields**: High-quality columns for automation: {', '.join(high_fill_columns[:3])}")
+      
+        if any('id' in col.get('header', '').lower() for sheet_data in sheet_analysis.values() for col in sheet_data.get('columns', [])):
+            lines.append("- **Primary Keys**: ID columns detected - suitable for record matching/deduplication")
+      
+        lines.append("")
+        lines.append("**Quality Considerations:**")
+        total_issues = sum(
+            sheet_data.get('duplicate_rows', {}).get('count', 0) 
+            for sheet_data in sheet_analysis.values()
+        )
+        if total_issues > 0:
+            lines.append(f"- **Data Cleaning**: {total_issues} duplicate rows require attention before automation")
+        else:
+            lines.append("- **Clean Data**: No major quality issues detected")
+      
+        lines.append("")
+        lines.append("**Usage Pattern:**")
+        lines.append("1. Extract schema from Section 4 (Sheet Analysis)")
+        lines.append("2. Identify join strategies from Section 5 (Relationships)")
+        lines.append("3. Use sample data to understand value patterns")
+        lines.append("4. Apply quality checks from data issues sections")
+        lines.append("5. Reference security analysis before automation deployment")
+      
         return lines
     
     def _create_fallback_text_report(self, results: Dict, output_path: str) -> str:

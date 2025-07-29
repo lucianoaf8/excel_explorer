@@ -70,6 +70,8 @@ Thumbs.db
 output/cache/*
 !output/cache/.gitkeep
 output/reports/*.html
+output/reports/*.txt
+output/reports/*.md
 output/structured/*.json
 tests/sample_files/*.xlsx
 tests/sample_files/*.xlsm
@@ -92,3 +94,4 @@ docs/*
 cleanup/
 assets/reference_logos/
 old_for_reference
+testing_files/

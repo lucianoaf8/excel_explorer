@@ -2,8 +2,11 @@
 Simple Excel Analyzer - Direct openpyxl implementation
 """
 
+import warnings
 import openpyxl
 from openpyxl.utils import get_column_letter
+# Suppress the Slicer List extension warning which is benign
+warnings.filterwarnings('ignore', message='Slicer List extension is not supported and will be removed', category=UserWarning)
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable, List, Set
 import time
@@ -16,6 +19,9 @@ import tempfile
 import threading
 from collections import defaultdict, Counter
 from statistics import mean, median, stdev
+import json
+import logging
+from logging.handlers import RotatingFileHandler
 
 from .config_manager import ConfigManager
 
@@ -27,35 +33,85 @@ class SimpleExcelAnalyzer:
         self.progress_callback: Optional[Callable] = None
         self.config_manager = ConfigManager()
         self.config: Dict[str, Any] = self.config_manager.load_config(config_path)
+        self.analysis_logger = self._setup_logger()
+    
+    def _setup_logger(self) -> logging.Logger:
+        """Setup logger for analysis operations"""
+        # Get project root and create logs directory
+        project_root = Path(__file__).parent.parent.parent
+        logs_dir = project_root / "logs"
+        logs_dir.mkdir(exist_ok=True)
+        
+        # Create logger
+        logger = logging.getLogger('excel_analyzer')
+        logger.setLevel(logging.DEBUG)
+        
+        # Clear existing handlers
+        logger.handlers.clear()
+        
+        # Create rotating file handler
+        log_file = logs_dir / f"analysis_{datetime.now().strftime('%Y%m%d')}.log"
+        file_handler = RotatingFileHandler(
+            log_file, 
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5
+        )
+        file_handler.setLevel(logging.DEBUG)
+        
+        # Create formatter with milliseconds
+        formatter = logging.Formatter(
+            '%(asctime)s.%(msecs)03d | %(levelname)-8s | %(name)s | %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        file_handler.setFormatter(formatter)
+        
+        # Add handler to logger
+        logger.addHandler(file_handler)
+        
+        return logger
         
     def analyze(self, file_path: str, progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
         """Single method for complete Excel analysis"""
         self.progress_callback = progress_callback
         start_time = time.time()
         
+        # Log analysis start
+        self.analysis_logger.info(f"{'='*80}")
+        self.analysis_logger.info(f"Starting analysis of file: {file_path}")
+        self.analysis_logger.info(f"File size: {os.path.getsize(file_path) / (1024*1024):.2f} MB")
+        
         try:
             module_statuses: Dict[str, str] = {}
             module_results: Dict[str, Any] = {}
+            module_timings: Dict[str, float] = {}
             
-            # Helper to execute modules safely
+            # Helper to execute modules safely with timing
             def _safe_run(mod: str, desc: str, fn: Callable[[], Any]):
+                module_start_time = time.perf_counter()
                 self._update_progress(mod, "starting", desc)
                 try:
                     res = fn()
+                    module_duration = time.perf_counter() - module_start_time
                     module_statuses[mod] = "success"
-                    self._update_progress(mod, "complete")
+                    module_timings[mod] = module_duration
+                    self._update_progress(mod, "complete", f"Completed in {module_duration:.3f}s")
                     return res
                 except Exception as exc:
+                    module_duration = time.perf_counter() - module_start_time
                     module_statuses[mod] = "failed"
-                    self._update_progress(mod, "error", str(exc))
+                    module_timings[mod] = module_duration
+                    self._update_progress(mod, "error", f"{str(exc)} (after {module_duration:.3f}s)")
                     return self._get_fallback_result(mod)
             
             # Load workbook (fail-fast: cannot proceed without workbook)
+            health_start_time = time.perf_counter()
             self._update_progress("health_checker", "starting", "Loading Excel file")
             wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
             self.wb = wb  # Store workbook for fallback access
+            health_duration = time.perf_counter() - health_start_time
             module_statuses["health_checker"] = "success"
-            self._update_progress("health_checker", "complete")
+            module_timings["health_checker"] = health_duration
+            self._update_progress("health_checker", "complete", f"Completed in {health_duration:.3f}s")
             
             # Individual modules
             file_info = _safe_run("file_info", "Gathering file info", lambda: self._get_file_info(file_path, wb))
@@ -88,24 +144,59 @@ class SimpleExcelAnalyzer:
             # Compile results
             results = self._compile_results(
                 file_info, structure, data_analysis, 
-                formula_analysis, visual_analysis, security_analysis, start_time, module_statuses
+                formula_analysis, visual_analysis, security_analysis, start_time, module_statuses, module_timings
             )
             # Inject additional module outputs
             results.setdefault('module_results', {})['dependency_mapper'] = dependency_map
             results.setdefault('module_results', {})['relationship_analyzer'] = relationships
             results.setdefault('module_results', {})['performance_monitor'] = performance_data
             
+            # Log analysis completion
+            total_time = time.time() - start_time
+            self.analysis_logger.info(f"Analysis completed successfully in {self._format_duration(total_time)}")
+            self.analysis_logger.info(f"Modules executed: {results['execution_summary']['successful_modules']}/{results['execution_summary']['total_modules']}")
+            self.analysis_logger.info(f"Total module time: {self._format_duration(results['execution_summary']['total_module_time'])}")
+            
+            # Log summary of findings
+            self.analysis_logger.info("Analysis Summary:")
+            self.analysis_logger.info(f"  - Sheets: {results['file_info']['sheet_count']}")
+            self.analysis_logger.info(f"  - Quality Score: {results['analysis_metadata']['quality_score']:.1%}")
+            self.analysis_logger.info(f"  - Security Score: {results['analysis_metadata']['security_score']:.1f}/10")
+            self.analysis_logger.info(f"{'='*80}")
+            
             return results
             
         except Exception as e:
+            self.analysis_logger.error(f"Analysis failed: {str(e)}")
             if 'wb' in locals():
                 wb.close()
             raise Exception(f"Analysis failed: {str(e)}")
     
     def _update_progress(self, module: str, status: str, detail: str = ""):
-        """Send progress updates to GUI"""
+        """Send progress updates to GUI and log"""
         if self.progress_callback:
             self.progress_callback(module, status, detail)
+        
+        # Log the progress
+        if status == "starting":
+            self.analysis_logger.info(f"Module {module}: STARTING - {detail}")
+        elif status == "complete":
+            self.analysis_logger.info(f"Module {module}: COMPLETE - {detail}")
+        elif status == "error":
+            self.analysis_logger.error(f"Module {module}: ERROR - {detail}")
+        else:
+            self.analysis_logger.info(f"Module {module}: {status} - {detail}")
+    
+    def _format_duration(self, seconds: float) -> str:
+        """Format duration in human-readable format"""
+        if seconds < 1:
+            return f"{seconds*1000:.0f}ms"
+        elif seconds < 60:
+            return f"{seconds:.1f}s"
+        else:
+            minutes = int(seconds // 60)
+            secs = seconds % 60
+            return f"{minutes}m {secs:.1f}s"
 
     def _get_fallback_result(self, module_name: str) -> Dict[str, Any]:
         """Provide fallback results when modules fail"""
@@ -1292,10 +1383,10 @@ class SimpleExcelAnalyzer:
                     continue
                 col_letter = get_column_letter(col_idx)
                 samples = headers[col_letter]['sample_values']
-                if len(samples) < 3:
+                if len(samples) < 10:
                     samples.append(str(value)[:50])  # truncate long strings
                 # early exit if all columns filled
-                if all(len(v['sample_values']) >= 3 for v in headers.values()):
+                if all(len(v['sample_values']) >= 10 for v in headers.values()):
                     break
 
         return headers
@@ -1378,7 +1469,7 @@ class SimpleExcelAnalyzer:
         }
     
     def _compile_results(self, file_info: Dict, structure: Dict, data: Dict, 
-                        formulas: Dict, visuals: Dict, security: Dict, start_time: float, module_statuses: Dict[str, str]) -> Dict[str, Any]:
+                        formulas: Dict, visuals: Dict, security: Dict, start_time: float, module_statuses: Dict[str, str], module_timings: Dict[str, float]) -> Dict[str, Any]:
         """Compile all results into final format with enhanced metrics"""
         
         # Enhanced quality score calculation
@@ -1460,7 +1551,10 @@ class SimpleExcelAnalyzer:
                 'successful_modules': successful_modules,
                 'failed_modules': total_modules - successful_modules,
                 'success_rate': success_rate,
-                'module_statuses': module_statuses
+                'module_statuses': module_statuses,
+                'module_timings': module_timings,
+                'total_module_time': sum(module_timings.values()),
+                'average_module_time': sum(module_timings.values()) / len(module_timings) if module_timings else 0
             },
             'resource_usage': {
                 'current_usage': {

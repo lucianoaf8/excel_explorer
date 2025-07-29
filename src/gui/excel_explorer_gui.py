@@ -80,7 +80,7 @@ class ModernStyle:
     SUCCESS = "#4CAF50"
     WARNING = "#FF9800"
     ERROR = "#F44336"
-    BACKGROUND = "#F8F9FA"
+    BACKGROUND = "#E8EAED"
     SURFACE = "#FFFFFF"
     TEXT_PRIMARY = "#212121"
     TEXT_SECONDARY = "#757575"
@@ -179,13 +179,13 @@ class ExcelExplorerApp:
     
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.setup_window()
-        self.setup_variables()
-        self.setup_ui()
         self.explorer = None
         self.analysis_thread = None
         self.current_results = None
         self.timer_thread = None
+        self.setup_variables()
+        self.setup_window()
+        self.setup_ui()
         
     def setup_window(self):
         """Configure main window"""
@@ -277,6 +277,8 @@ class ExcelExplorerApp:
         self.analysis_running = tk.BooleanVar(value=False)
         # Path to the last auto-exported report
         self.auto_report_path: Optional[str] = None
+        # Auto-generate reports checkbox
+        self.auto_generate_reports = tk.BooleanVar(value=True)
         
     def setup_ui(self):
         """Create enhanced UI layout"""
@@ -379,6 +381,15 @@ class ExcelExplorerApp:
         )
         select_btn.pack(anchor=tk.W)
         
+        # Auto-generate reports checkbox
+        self.auto_generate_checkbox = ttk.Checkbutton(
+            file_frame,
+            text="Generate reports upon completion",
+            variable=self.auto_generate_reports,
+            style="TCheckbutton"
+        )
+        self.auto_generate_checkbox.pack(anchor=tk.W, pady=(10, 0))
+        
     def create_progress_section(self, parent):
         """Create enhanced progress section with circular indicator"""
         progress_frame = ttk.LabelFrame(parent, text="📈 Analysis Progress", padding="20")
@@ -468,6 +479,15 @@ class ExcelExplorerApp:
         )
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
+        # Configure color tags for different log types
+        self.log_text.tag_config("success", foreground="#059669")  # Green
+        self.log_text.tag_config("error", foreground="#dc2626")  # Red
+        self.log_text.tag_config("warning", foreground="#d97706")  # Orange
+        self.log_text.tag_config("info", foreground="#2563eb")  # Blue
+        self.log_text.tag_config("celebrate", foreground="#7c3aed", font=ModernStyle.FONT_MONO + ("bold",))  # Purple bold
+        self.log_text.tag_config("progress", foreground="#059669")  # Teal
+        self.log_text.tag_config("timestamp", foreground="#6b7280")  # Gray
+        
         # Results preview tab
         results_frame = ttk.Frame(notebook)
         notebook.add(results_frame, text="📊 Results Summary")
@@ -544,6 +564,14 @@ class ExcelExplorerApp:
             state=tk.DISABLED
         )
         self.export_btn.pack(side=tk.RIGHT, padx=(0, 5))
+
+        # Open reports folder button
+        open_folder_btn = ttk.Button(
+            export_frame,
+            text="📁 Open Reports Folder",
+            command=self.open_reports_folder
+        )
+        open_folder_btn.pack(side=tk.LEFT)
         
     def select_file(self):
         """Open file selection dialog"""
@@ -649,18 +677,28 @@ class ExcelExplorerApp:
         
     def _update_progress(self, module_name: str, status: str, detail: str):
         """Update progress UI on main thread"""
+        module_display = module_name.replace('_', ' ').title()
+        
         if status == "starting":
             self.progress_tracker.start_module(module_name, detail)
-            self.log_message(f"🔍 Starting {module_name.replace('_', ' ').title()}: {detail}")
+            self.log_message(f"🔍 Starting {module_display}: {detail}")
         elif status == "step":
             self.progress_tracker.update_step(module_name, detail)
             self.log_message(f"  ↳ {detail}")
         elif status == "complete":
             self.progress_tracker.complete_module(module_name, True)
-            self.log_message(f"✅ Completed {module_name.replace('_', ' ').title()}")
+            # Check if detail contains timing information
+            if "Completed in" in detail:
+                self.log_message(f"✅ Completed {module_display} - {detail}")
+            else:
+                self.log_message(f"✅ Completed {module_display}")
         elif status == "error":
             self.progress_tracker.complete_module(module_name, False)
-            self.log_message(f"❌ ERROR in {module_name}: {detail}")
+            # Check if detail contains timing information  
+            if "after" in detail:
+                self.log_message(f"❌ ERROR in {module_display}: {detail}")
+            else:
+                self.log_message(f"❌ ERROR in {module_name}: {detail}")
             
     def _analysis_complete(self, results: Dict[str, Any]):
         """Handle successful analysis completion"""
@@ -714,6 +752,10 @@ class ExcelExplorerApp:
             
             # Auto-export full HTML report
             self._auto_export_report(results_dict)
+            
+            # Auto-generate all report formats if checkbox is checked
+            if self.auto_generate_reports.get():
+                self._auto_generate_all_reports(results_dict)
             
             # Switch to report tab automatically
             if hasattr(self, 'notebook') and hasattr(self, 'report_frame'):
@@ -914,6 +956,56 @@ class ExcelExplorerApp:
             
         except Exception as e:
             self.log_message(f"⚠️ Auto-export failed: {e}")
+
+    def _auto_generate_all_reports(self, results: Dict[str, Any]):
+        """Automatically generate all report formats with enhanced status updates"""
+        try:
+            self.log_message("🔄 Generating text and markdown reports...")
+            
+            # Use output/reports directory relative to project root
+            project_root = Path(__file__).resolve().parent.parent.parent
+            reports_dir = project_root / "output" / "reports"
+            reports_dir.mkdir(parents=True, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_name = Path(self.selected_file.get()).stem if self.selected_file.get() else "report"
+            
+            # Generate text report
+            text_file_name = f"{base_name}_{timestamp}.txt"
+            text_output_path = reports_dir / text_file_name
+            text_report_generator = ComprehensiveTextReportGenerator()
+            text_report_generator.generate_text_report(results, str(text_output_path))
+            self.log_message(f"📝 Text report generated: {text_output_path}")
+            self.log_message(f"✅ Text report generated: {text_file_name}")
+            
+            # Generate markdown report
+            markdown_file_name = f"{base_name}_{timestamp}.md"
+            markdown_output_path = reports_dir / markdown_file_name
+            text_report_generator.generate_markdown_report(results, str(markdown_output_path))
+            self.log_message(f"📄 Markdown report generated: {markdown_output_path}")
+            self.log_message(f"✅ Markdown report generated: {markdown_file_name}")
+            
+            self.log_message(f"✅ All reports generated in: {reports_dir}")
+            
+            # Show completion notification
+            messagebox.showinfo(
+                "Reports Generated",
+                f"All reports generated successfully!\n\n"
+                f"📁 Location: {reports_dir.absolute()}\n"
+                f"📄 Files:\n"
+                f"  • {base_name}_{timestamp}.html\n"
+                f"  • {base_name}_{timestamp}.txt\n"
+                f"  • {base_name}_{timestamp}.md"
+            )
+            
+        except Exception as e:
+            error_msg = f"❌ Error generating reports: {str(e)}"
+            self.log_message(f"⚠️ Auto-generation of reports failed: {e}")
+            self.log_message(error_msg)
+            messagebox.showerror("Report Generation Error", error_msg)
+            print(f"Report generation error: {e}")
+            import traceback
+            traceback.print_exc()
 
     def export_report(self):
         """Export full HTML report"""
@@ -1120,25 +1212,77 @@ class ExcelExplorerApp:
             self.progress_tracker.set_error("Analysis stopped by user")
             self.log_message("⏹️ Analysis stop requested")
             
+    def open_reports_folder(self):
+        """Open the reports folder in system file explorer"""
+        try:
+            # Get the reports directory path
+            project_root = Path(__file__).resolve().parent.parent.parent
+            reports_dir = project_root / "output" / "reports"
+            
+            # Create directory if it doesn't exist
+            reports_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Open the folder based on the operating system
+            if sys.platform == 'win32':
+                os.startfile(str(reports_dir))
+            elif sys.platform == 'darwin':  # macOS
+                os.system(f'open "{reports_dir}"')
+            else:  # Linux and others
+                os.system(f'xdg-open "{reports_dir}"')
+                
+            self.log_message(f"📁 Opened reports folder: {reports_dir}")
+            
+        except Exception as e:
+            self.log_message(f"❌ Failed to open reports folder: {e}")
+            messagebox.showerror("Open Folder Error", f"Failed to open reports folder:\n{e}")
+    
     def clear_logs(self):
         """Clear log display"""
         self.log_text.delete(1.0, tk.END)
         
     def log_message(self, message: str):
-        """Add message to log display"""
+        """Add message to log display with color support"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         log_entry = f"[{timestamp}] {message}\n"
         
         # Insert on main thread
         if threading.current_thread() == threading.main_thread():
-            self.log_text.insert(tk.END, log_entry)
-            self.log_text.see(tk.END)
+            self._insert_colored_log(log_entry, message)
         else:
-            self.root.after(0, lambda: self._insert_log(log_entry))
+            self.root.after(0, lambda: self._insert_colored_log(log_entry, message))
             
     def _insert_log(self, log_entry: str):
         """Insert log entry on main thread"""
         self.log_text.insert(tk.END, log_entry)
+        self.log_text.see(tk.END)
+    
+    def _insert_colored_log(self, log_entry: str, message: str):
+        """Insert log entry with color based on content"""
+        # Get the current end position before inserting
+        start_pos = self.log_text.index(tk.END + "-1c")
+        
+        # Insert the text
+        self.log_text.insert(tk.END, log_entry)
+        
+        # Determine color based on message content
+        tag = None
+        if "✅" in message or "Success" in message or "Complete" in message:
+            tag = "success"
+        elif "❌" in message or "Error" in message or "Failed" in message:
+            tag = "error"
+        elif "⚠️" in message or "Warning" in message:
+            tag = "warning"
+        elif "💾" in message or "Saved" in message:
+            tag = "info"
+        elif "🎉" in message or "completed successfully" in message:
+            tag = "celebrate"
+        elif "Analyzing" in message or "Starting" in message:
+            tag = "progress"
+        
+        # Apply tag if determined
+        if tag:
+            self.log_text.tag_add(tag, start_pos, tk.END + "-1c")
+        
         self.log_text.see(tk.END)
 
 
