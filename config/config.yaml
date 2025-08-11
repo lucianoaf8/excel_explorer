@@ -24,3 +24,11 @@ performance:
 logging:
   level: INFO
   include_timestamps: true
+
+screenshot:
+  enabled: false               # Enable/disable screenshot capture
+  show_excel: false           # Show Excel window during capture (for debugging)
+  capture_mode: used_range    # used_range | full_sheet | print_area
+  output_dir: output/screenshots  # Where to save screenshots
+  format: PNG                 # Image format (PNG, JPEG)
+  quality: 95                 # JPEG quality (1-100)

@@ -66,6 +66,15 @@ class AnalysisService:
             progress_callback("Initializing analysis...", 0.2)
         
         try:
+            # Add file path to config for screenshot analyzer
+            if 'screenshot' in self.config:
+                self.config['screenshot']['file_path'] = file_path
+            else:
+                self.config['screenshot'] = {'file_path': file_path}
+            
+            # Update orchestrator with new config
+            self.orchestrator = AnalyzerOrchestrator(self.config)
+            
             # Perform analysis using orchestrator
             def orchestrator_progress(message: str, progress: float):
                 if progress_callback:

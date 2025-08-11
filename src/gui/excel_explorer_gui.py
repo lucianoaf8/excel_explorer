@@ -280,6 +280,10 @@ class ExcelExplorerApp:
         self.auto_report_path: Optional[str] = None
         # Auto-generate reports checkbox
         self.auto_generate_reports = tk.BooleanVar(value=True)
+        # Anonymizer settings
+        self.anonymize_enabled = tk.BooleanVar(value=False)
+        self.anonymize_mapping_format = tk.StringVar(value='json')
+        self.sensitive_columns = {}  # Will store detected columns
         
     def setup_ui(self):
         """Create enhanced UI layout"""
@@ -390,6 +394,9 @@ class ExcelExplorerApp:
             style="TCheckbutton"
         )
         self.auto_generate_checkbox.pack(anchor=tk.W, pady=(10, 0))
+        
+        # Anonymizer controls
+        self.create_anonymizer_controls(file_frame)
         
     def create_progress_section(self, parent):
         """Create enhanced progress section with circular indicator"""
@@ -589,6 +596,105 @@ class ExcelExplorerApp:
         if filename:
             self.selected_file.set(filename)
             self.log_message(f"📁 Selected file: {Path(filename).name}")
+            # Auto-detect sensitive columns when file is selected
+            self.auto_detect_columns()
+    
+    def create_anonymizer_controls(self, parent):
+        """Create anonymizer control section"""
+        # Anonymizer section
+        anon_frame = ttk.LabelFrame(parent, text="🔒 Data Anonymization", padding="10")
+        anon_frame.pack(fill=tk.X, pady=(15, 0))
+        
+        # Enable anonymization checkbox
+        self.anonymize_checkbox = ttk.Checkbutton(
+            anon_frame,
+            text="Anonymize sensitive data before analysis",
+            variable=self.anonymize_enabled,
+            command=self.on_anonymize_toggle,
+            style="TCheckbutton"
+        )
+        self.anonymize_checkbox.pack(anchor=tk.W)
+        
+        # Options frame (initially hidden)
+        self.anon_options_frame = ttk.Frame(anon_frame)
+        
+        # Mapping format selection
+        format_frame = ttk.Frame(self.anon_options_frame)
+        format_frame.pack(fill=tk.X, pady=(8, 0))
+        
+        ttk.Label(format_frame, text="Mapping format:", font=("Arial", 9)).pack(side=tk.LEFT)
+        
+        format_combo = ttk.Combobox(
+            format_frame,
+            textvariable=self.anonymize_mapping_format,
+            values=['json', 'excel'],
+            width=8,
+            state="readonly"
+        )
+        format_combo.pack(side=tk.LEFT, padx=(5, 0))
+        
+        # Column detection info
+        self.column_info_label = ttk.Label(
+            self.anon_options_frame,
+            text="Select a file to detect sensitive columns",
+            font=("Arial", 9),
+            foreground="#666666"
+        )
+        self.column_info_label.pack(anchor=tk.W, pady=(5, 0))
+        
+        # Detect columns button
+        self.detect_btn = ttk.Button(
+            self.anon_options_frame,
+            text="🔍 Detect Columns",
+            command=self.detect_sensitive_columns,
+            state=tk.DISABLED
+        )
+        self.detect_btn.pack(anchor=tk.W, pady=(5, 0))
+        
+    def on_anonymize_toggle(self):
+        """Handle anonymization checkbox toggle"""
+        if self.anonymize_enabled.get():
+            self.anon_options_frame.pack(fill=tk.X, pady=(5, 0))
+            if self.selected_file.get():
+                self.detect_btn.config(state=tk.NORMAL)
+        else:
+            self.anon_options_frame.pack_forget()
+    
+    def auto_detect_columns(self):
+        """Auto-detect sensitive columns when file is selected"""
+        if self.selected_file.get() and self.anonymize_enabled.get():
+            self.detect_sensitive_columns(auto=True)
+    
+    def detect_sensitive_columns(self, auto=False):
+        """Detect sensitive columns in the selected file"""
+        if not self.selected_file.get():
+            return
+            
+        try:
+            from services.anonymizer_service import AnonymizerService
+            
+            def detection_progress(message: str, progress: float):
+                if not auto:  # Only show progress for manual detection
+                    self.column_info_label.config(text=message)
+                    self.root.update()
+            
+            service = AnonymizerService(progress_callback=detection_progress)
+            self.sensitive_columns = service.detect_sensitive_columns(self.selected_file.get())
+            
+            if self.sensitive_columns:
+                total_cols = sum(len(cols) for cols in self.sensitive_columns.values())
+                info_text = f"Found {total_cols} sensitive columns across {len(self.sensitive_columns)} sheets"
+                self.column_info_label.config(text=info_text, foreground="#2E7D32")
+            else:
+                self.column_info_label.config(text="No sensitive columns detected", foreground="#F57F17")
+                
+        except ImportError:
+            if not auto:
+                messagebox.showerror("Missing Dependency", "Please install faker library: pip install faker")
+        except Exception as e:
+            if not auto:
+                messagebox.showerror("Detection Error", f"Failed to detect columns: {e}")
+            self.column_info_label.config(text="Detection failed", foreground="#D32F2F")
             
     def start_analysis(self):
         """Start Excel file analysis with enhanced progress tracking"""
@@ -652,18 +758,77 @@ class ExcelExplorerApp:
             return f"{hours}h {minutes}m"
         
     def _run_analysis(self):
-        """Run analysis in background thread"""
+        """Run analysis in background thread with optional anonymization"""
         try:
+            original_file_path = self.selected_file.get()
+            analysis_file_path = original_file_path
+            anonymizer_results = None
+            
+            # Handle anonymization if enabled
+            if self.anonymize_enabled.get():
+                try:
+                    self.log_message("🔒 Starting data anonymization...")
+                    from services.anonymizer_service import AnonymizerService
+                    
+                    def anon_progress(message: str, progress: float):
+                        self.root.after(0, lambda: self._update_anon_progress(message, progress))
+                    
+                    service = AnonymizerService(progress_callback=anon_progress)
+                    
+                    # Use detected columns or auto-detect
+                    columns = self.sensitive_columns if self.sensitive_columns else None
+                    
+                    anon_path, map_path, stats = service.anonymize_excel_file(
+                        file_path=original_file_path,
+                        columns=columns,
+                        auto_detect=True,
+                        mapping_format=self.anonymize_mapping_format.get()
+                    )
+                    
+                    if anon_path and map_path:
+                        analysis_file_path = anon_path
+                        anonymizer_results = {
+                            'anonymized_file': anon_path,
+                            'mapping_file': map_path,
+                            'stats': stats,
+                            'total_values': sum(stats.values())
+                        }
+                        self.log_message(f"✅ Anonymization complete: {anonymizer_results['total_values']} values anonymized")
+                        self.log_message(f"📁 Anonymized file: {Path(anon_path).name}")
+                        self.log_message(f"🔑 Mapping file: {Path(map_path).name}")
+                    else:
+                        self.log_message("⚠️ No sensitive data found to anonymize")
+                        
+                except ImportError:
+                    self.root.after(0, lambda: messagebox.showerror(
+                        "Missing Dependency", 
+                        "Faker library required for anonymization. Install with: pip install faker"
+                    ))
+                    return
+                except Exception as e:
+                    self.log_message(f"❌ Anonymization failed: {e}")
+                    self.root.after(0, lambda: messagebox.showerror("Anonymization Error", f"Failed to anonymize data: {e}"))
+                    return
+            
             # Initialize explorer
             self.log_message("🔧 Initializing Excel Explorer...")
             self.explorer = SimpleExcelAnalyzer()
             
             # Run analysis with progress tracking
-            file_path = self.selected_file.get()
-            self.log_message(f"🚀 Starting analysis of {Path(file_path).name}")
+            file_name = Path(analysis_file_path).name
+            if anonymizer_results:
+                self.log_message(f"🚀 Starting analysis of anonymized file: {file_name}")
+            else:
+                self.log_message(f"🚀 Starting analysis of {file_name}")
             
             # Execute analysis
-            results = self.explorer.analyze(file_path, progress_callback=self._progress_callback)
+            results = self.explorer.analyze(analysis_file_path, progress_callback=self._progress_callback)
+            
+            # Add anonymizer info to results if applicable
+            if anonymizer_results:
+                results['anonymizer'] = anonymizer_results
+                results['original_file'] = original_file_path
+                results['analyzed_file'] = analysis_file_path
             
             # Analysis complete
             self.current_results = results
@@ -672,6 +837,11 @@ class ExcelExplorerApp:
         except Exception as e:
             self._analysis_error(str(e))
             
+    def _update_anon_progress(self, message: str, progress: float):
+        """Update anonymization progress"""
+        self.progress_text.set(f"🔒 Anonymization: {message}")
+        self.circular_progress.set_progress(progress)
+        
     def _progress_callback(self, module_name: str, status: str, detail: str = ""):
         """Handle progress updates from analysis"""
         self.root.after(0, lambda: self._update_progress(module_name, status, detail))
@@ -911,6 +1081,16 @@ class ExcelExplorerApp:
             file_info = results['file_info']
             summary.append(f"📁 File: {file_info.get('name', 'Unknown')}")
             summary.append(f"📏 Size: {file_info.get('size_mb', 0):.2f} MB")
+            summary.append("")
+        
+        # Anonymization info
+        if 'anonymizer' in results:
+            anon_info = results['anonymizer']
+            summary.append("🔒 DATA ANONYMIZATION:")
+            summary.append(f"  ✅ {anon_info['total_values']} values anonymized")
+            summary.append(f"  📁 Original file: {Path(results.get('original_file', 'Unknown')).name}")
+            summary.append(f"  📁 Analyzed file: {Path(results.get('analyzed_file', 'Unknown')).name}")
+            summary.append(f"  🔑 Mapping saved: {Path(anon_info['mapping_file']).name}")
             summary.append("")
         
         # Module status

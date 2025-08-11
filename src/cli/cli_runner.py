@@ -39,10 +39,18 @@ def run_cli_analysis(
     output_dir: Optional[str] = None,
     format_type: str = 'html',
     config_path: str = 'config.yaml',
-    verbose: bool = False
+    verbose: bool = False,
+    enable_screenshots: bool = False,
+    # Anonymizer parameters
+    anonymize: bool = False,
+    anonymize_columns: Optional[list] = None,
+    mapping_file: Optional[str] = None,
+    mapping_format: str = 'json',
+    reverse: Optional[str] = None,
+    anonymized_output: Optional[str] = None
 ) -> int:
     """
-    Execute CLI-based analysis with comprehensive error handling
+    Execute CLI-based analysis with optional anonymization and comprehensive error handling
     
     Args:
         file_path: Path to Excel file to analyze
@@ -50,11 +58,50 @@ def run_cli_analysis(
         format_type: Report format (html, json, text, markdown)
         config_path: Configuration file path
         verbose: Enable detailed progress output
+        enable_screenshots: Enable screenshot capture
+        anonymize: Enable data anonymization before analysis
+        anonymize_columns: Specific columns to anonymize
+        mapping_file: Path for mapping dictionary
+        mapping_format: Format for mapping file
+        reverse: Path to mapping file for reversal
+        anonymized_output: Output path for anonymized file
         
     Returns:
         Exit code (0 = success, 1 = error)
     """
     try:
+        # Handle anonymization/reversal first if requested
+        if anonymize or reverse:
+            from cli.anonymizer_command import run_anonymizer
+            
+            result = run_anonymizer(
+                file_path=file_path,
+                anonymize=anonymize,
+                anonymize_columns=anonymize_columns,
+                mapping_file=mapping_file,
+                mapping_format=mapping_format,
+                reverse=reverse,
+                output_path=anonymized_output,
+                verbose=verbose
+            )
+            
+            if result != 0:
+                return result
+            
+            # If we anonymized, update file_path for analysis
+            if anonymize:
+                if anonymized_output:
+                    file_path = anonymized_output
+                else:
+                    # Generate default anonymized path
+                    p = Path(file_path)
+                    file_path = str(p.parent / f"{p.stem}_anonymized{p.suffix}")
+                print(f"\n→ Proceeding with analysis of anonymized file")
+            
+            # If we just reversed, we're done (no analysis)
+            if reverse:
+                return 0
+        
         # Validate input file
         input_file = Path(file_path)
         if not input_file.exists():
@@ -76,6 +123,14 @@ def run_cli_analysis(
         
         # Initialize analysis service
         analysis_service = AnalysisService(config_path)
+        
+        # Enable screenshots if requested
+        if enable_screenshots:
+            config = analysis_service.get_configuration()
+            config['screenshot']['enabled'] = True
+            if verbose:
+                config['screenshot']['show_excel'] = True
+            analysis_service.update_configuration(config)
         
         if verbose:
             print(f"Configuration loaded from: {config_path}")

@@ -1,5 +1,12 @@
 # Excel Explorer v2.0 - Comprehensive Project Documentation
 
+> **🆕 What's New in v2.0**
+> - **Modular Architecture**: Refactored from monolithic 1570-line analyzer to pluggable service modules
+> - **📸 Excel Screenshots**: Pixel-perfect sheet capture using xlwings (Windows only)
+> - **🔒 Data Anonymization**: Secure data masking with reversible mapping
+> - **Simplified Configuration**: Streamlined from 325 lines to 81 lines (75% reduction)
+> - **Service-Oriented Design**: Clean separation between analysis, reporting, and interfaces
+
 ## Table of Contents
 
 1. [Project Overview](https://claude.ai/chat/1f81d95d-7550-47ed-84ce-3bf318a8b96e#project-overview)
@@ -24,13 +31,24 @@ Excel Explorer v2.0 is a comprehensive Excel file analysis tool designed for dat
 
 ### Key Capabilities
 
-* **Rapid File Inspection** : Analyze Excel files without Excel installation
-* **Security Assessment** : Detect macros, external references, sensitive data patterns
-* **Data Profiling** : Column-wise analysis with type detection and quality metrics
-* **Structure Mapping** : Sheet relationships, hidden content, workbook features
-* **Multi-format Reporting** : HTML (interactive), JSON, Text, and Markdown
-* **Real-time Progress** : GUI with circular progress indicators and CLI verbose mode
-* **Cross-platform** : Windows, macOS, Linux support via Python and Tkinter
+#### Core Analysis Features
+* **Rapid File Inspection**: Analyze Excel files without Excel installation
+* **Security Assessment**: Detect macros, external references, sensitive data patterns
+* **Data Profiling**: Column-wise analysis with type detection and quality metrics
+* **Structure Mapping**: Sheet relationships, hidden content, workbook features
+* **Multi-format Reporting**: HTML (interactive), JSON, Text, and Markdown
+* **Real-time Progress**: GUI with circular progress indicators and CLI verbose mode
+
+#### Advanced Features (New in v2.0)
+* **📸 Excel Screenshots**: Pixel-perfect sheet capture exactly as displayed in Excel (Windows only)
+* **🔒 Data Anonymization**: Secure data masking with reversible mapping for sensitive information
+* **🏗️ Modular Architecture**: Plugin-based analyzers with service orchestration
+* **⚙️ Simplified Configuration**: Streamlined settings with environment variable support
+* **🔄 Unified Service Interface**: Consistent API for both CLI and GUI modes
+
+#### Platform Support
+* **Cross-platform Core**: Windows, macOS, Linux support via Python and Tkinter
+* **Windows-Enhanced**: Additional screenshot capabilities via xlwings and COM automation
 
 ### Supported File Formats
 
@@ -43,58 +61,87 @@ Excel Explorer v2.0 is a comprehensive Excel file analysis tool designed for dat
 
 ## Architecture & Design
 
-### High-Level Architecture
+### High-Level Architecture (v2.0 Refactored)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        main.py                              │
-│                  (Unified Entry Point)                      │
+│              (Unified Entry Point + Anonymizer)            │
 └─────────────────┬───────────────────────┬───────────────────┘
                   │                       │
         ┌─────────▼─────────┐   ┌─────────▼─────────┐
         │   GUI Mode        │   │   CLI Mode        │
-        │ (Tkinter-based)   │   │ (Command-line)    │
+        │ (Tkinter-based)   │   │ (Command-line)    │ 
         └─────────┬─────────┘   └─────────┬─────────┘
                   │                       │
                   └───────────┬───────────┘
                               │
                   ┌───────────▼───────────┐
-                  │     Core Analysis     │
-                  │      Engine           │
+                  │   Analysis Service    │
+                  │  (Unified Interface)  │
                   └───────────┬───────────┘
                               │
-              ┌───────────────┼───────────────┐
-              │               │               │
-    ┌─────────▼─────────┐ ┌───▼───┐ ┌─────────▼─────────┐
-    │  Report Generation│ │Config │ │    Utilities      │
-    │  (Multi-format)   │ │ Mgmt  │ │  & Validation     │
-    └───────────────────┘ └───────┘ └───────────────────┘
+                  ┌───────────▼───────────┐
+                  │ Analyzer Orchestrator │
+                  │  (Module Coordinator) │
+                  └───────────┬───────────┘
+                              │
+      ┌───────────────────────┼───────────────────────┐
+      │                       │                       │
+┌─────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐ ┌─────▼──────┐
+│ Structure  │ │    Data     │ │  Formula    │ │Screenshot  │
+│ Analyzer   │ │ Analyzer    │ │ Analyzer    │ │Analyzer(📸)│
+└─────┬──────┘ └──────┬──────┘ └──────┬──────┘ └─────┬──────┘
+      └───────────────┼───────────────┼──────────────┘
+                      │               │
+          ┌───────────▼───────────────▼───────────┐
+          │        Report Service                 │
+          │     (Adapter + Generator)             │
+          └───────────┬───────────────────────────┘
+                      │
+      ┌───────────────┼───────────────┐
+      │               │               │
+┌─────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐
+│    HTML    │ │    JSON     │ │Text/Markdown│
+│  Reports   │ │  Reports    │ │  Reports    │
+└────────────┘ └─────────────┘ └─────────────┘
 ```
 
-### Project Structure
+### Project Structure (v2.0 Refactored)
 
 ```
 excel_explorer/
 ├── main.py                          # Unified entry point
+├── test_screenshot.py               # Screenshot testing utility
 ├── config/
-│   └── config.yaml                  # Default configuration
+│   └── config.yaml                  # Configuration with screenshot settings
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                      # Module entry point
-│   ├── core/                        # Analysis engine
+│   ├── core/                        # Analysis engine (refactored)
 │   │   ├── __init__.py
-│   │   ├── analyzer.py              # Main analysis logic
-│   │   └── config_manager.py        # Configuration management
+│   │   ├── analysis_service.py      # Unified service interface
+│   │   ├── config.py               # Simplified configuration (81 lines)
+│   │   └── analyzers/              # Modular analyzer plugins
+│   │       ├── __init__.py
+│   │       ├── base.py             # Base analyzer class
+│   │       ├── orchestrator.py     # Module coordination
+│   │       ├── structure.py        # Sheet structure analysis
+│   │       ├── data.py            # Data profiling & quality
+│   │       ├── formula.py         # Formula analysis
+│   │       └── screenshot.py      # Excel screenshots (Windows)
 │   ├── gui/                         # GUI components
 │   │   ├── __init__.py
 │   │   └── excel_explorer_gui.py    # Tkinter interface
 │   ├── cli/                         # CLI components
 │   │   ├── __init__.py
-│   │   └── cli_runner.py            # Command-line execution
+│   │   ├── cli_runner.py           # Command-line execution
+│   │   └── anonymizer_command.py   # Anonymization CLI
 │   ├── reports/                     # Report generation
 │   │   ├── __init__.py
-│   │   ├── report_base.py           # Unified data model
-│   │   ├── report_generator.py      # HTML/JSON reports
+│   │   ├── report_base.py          # Unified data model
+│   │   ├── report_adapter.py       # New/old system bridge
+│   │   ├── report_generator.py     # HTML/JSON reports
 │   │   └── structured_text_report.py # Text/Markdown reports
 │   └── utils/                       # Utilities
 │       ├── __init__.py
@@ -115,43 +162,45 @@ excel_explorer/
 └── .gitignore                       # Version control exclusions
 ```
 
-### Core Analysis Modules
+### Core Analysis Modules (v2.0 Refactored)
 
-#### 1. Health Checker
+#### Service Layer Architecture
+* **AnalysisService** (`src/core/analysis_service.py`): Unified interface providing consistent API for CLI and GUI
+* **AnalyzerOrchestrator** (`src/core/analyzers/orchestrator.py`): Coordinates module execution with error handling
+* **BaseAnalyzer** (`src/core/analyzers/base.py`): Abstract base class for all analyzer modules
 
-* **Purpose** : Initial file validation and integrity check
-* **Implementation** : `_get_file_info()` in `analyzer.py`
-* **Checks** : File accessibility, signature validation, corruption detection
+#### Modular Analyzers
 
-#### 2. Structure Mapper
+#### 1. Structure Analyzer
+* **Purpose**: Workbook structure analysis (sheets, ranges, tables, protection)
+* **Implementation**: `src/core/analyzers/structure.py`
+* **Features**: Sheet enumeration, hidden content detection, named ranges, table analysis
+* **Output**: Sheet details, workbook features, protection info
 
-* **Purpose** : Workbook structure analysis
-* **Implementation** : `_analyze_structure()` in `analyzer.py`
-* **Features** : Sheet enumeration, hidden content, named ranges, tables, protection
+#### 2. Data Analyzer  
+* **Purpose**: Cell-level data analysis and quality assessment
+* **Implementation**: `src/core/analyzers/data.py`
+* **Features**: Type detection, column profiling, data density, quality metrics, cross-sheet analysis
+* **Output**: Data quality scores, type distribution, sheet-level statistics
 
-#### 3. Data Profiler
+#### 3. Formula Analyzer
+* **Purpose**: Formula complexity and dependency analysis  
+* **Implementation**: `src/core/analyzers/formula.py`
+* **Features**: Formula parsing, complexity scoring, external reference detection, function usage
+* **Output**: Formula statistics, complexity metrics, dependency mapping
 
-* **Purpose** : Cell-level data analysis and quality assessment
-* **Implementation** : `_analyze_data()` in `analyzer.py`
-* **Features** : Type detection, column profiling, data density, quality metrics
+#### 4. Screenshot Analyzer (🆕 v2.0)
+* **Purpose**: Pixel-perfect sheet capture exactly as displayed in Excel
+* **Implementation**: `src/core/analyzers/screenshot.py`
+* **Features**: xlwings integration, Windows COM automation, organized output structure
+* **Requirements**: Windows only, `xlwings`, `pywin32`, `pillow`
+* **Output**: PNG screenshots saved to timestamped folders
 
-#### 4. Formula Analyzer
-
-* **Purpose** : Formula complexity and dependency analysis
-* **Implementation** : `_analyze_formulas()` in `analyzer.py`
-* **Features** : Formula counting, complexity scoring, external reference detection
-
-#### 5. Visual Cataloger
-
-* **Purpose** : Charts, images, and visual elements analysis
-* **Implementation** : `_analyze_visuals()` in `analyzer.py`
-* **Features** : Chart counting, image detection, conditional formatting
-
-#### 6. Security Inspector
-
-* **Purpose** : Security risk assessment and threat detection
-* **Implementation** : `_analyze_security()` in `analyzer.py`
-* **Features** : Macro detection, sensitive data patterns, security scoring
+#### Legacy Module Integration
+The new modular system maintains backward compatibility through:
+* **ReportAdapter** (`src/reports/report_adapter.py`): Bridges new analyzer results with existing ReportDataModel
+* **Graceful fallback**: Modules that fail don't break the entire analysis
+* **Consistent output format**: All modules return standardized result dictionaries
 
 ---
 
@@ -173,8 +222,14 @@ excel_explorer/
 git clone <repository-url>
 cd excel_explorer
 
-# Install dependencies
+# Install core dependencies
 pip install -r requirements.txt
+
+# Optional: Install screenshot dependencies (Windows only)
+pip install xlwings pillow pywin32
+
+# Optional: Install anonymization dependencies  
+pip install faker
 
 # Run directly
 python main.py                    # GUI mode
@@ -211,11 +266,22 @@ pip install -r requirements.txt
 
 ### Dependency Details
 
+#### Core Dependencies
 ```
 openpyxl==3.1.2      # Excel file processing (read-only streaming)
 PyYAML==6.0.1        # Configuration management
 mdutils==1.6.0       # Markdown report generation
-Pillow==10.1.0       # Image processing for GUI logos
+Pillow==10.1.0       # Image processing for GUI and screenshots
+```
+
+#### Optional Dependencies (Advanced Features)
+```
+# Screenshot functionality (Windows only)
+xlwings>=0.30.0      # Excel COM automation
+pywin32>=306         # Windows COM interface
+
+# Data anonymization
+faker>=20.0.0        # Data masking and generation
 ```
 
 ### Platform-Specific Setup
@@ -223,7 +289,11 @@ Pillow==10.1.0       # Image processing for GUI logos
 #### Windows
 
 * Tkinter included with Python
-* No additional setup required
+* **Enhanced features available**: Excel screenshots via xlwings COM automation
+* **Recommended**: Install optional dependencies for full functionality
+  ```bash
+  pip install xlwings pywin32 faker
+  ```
 
 #### macOS
 
@@ -283,18 +353,43 @@ python main.py --mode cli --file data.xlsx --format json --output ./reports
 
 # Verbose output with custom configuration
 python main.py --mode cli --file data.xlsx --config custom.yaml --verbose
+
+# Enable Excel sheet screenshots (Windows only)
+python main.py --mode cli --file data.xlsx --screenshots
+
+# Enable data anonymization
+python main.py --mode cli --file sensitive_data.xlsx --anonymize
+
+# Anonymize specific columns
+python main.py --mode cli --file data.xlsx --anonymize --anonymize-columns "Sheet1:Name" "Sheet1:Email"
+
+# Reverse anonymization
+python main.py --mode cli --file anonymized_data.xlsx --reverse mapping.json
 ```
 
 #### CLI Options
 
 ```bash
-Options:
+Core Options:
   --mode {gui,cli}           Execution mode (default: gui)
   --file FILE               Excel file to analyze (required for CLI)
   --output OUTPUT           Output directory (default: ./reports)
   --format {html,json,text,markdown}  Report format (default: html)
   --config CONFIG           Configuration file path (default: config.yaml)
   --verbose, -v             Enable verbose output
+
+Advanced Features:
+  --screenshots             Enable Excel sheet screenshot capture (Windows only)
+
+Anonymization Options:
+  --anonymize              Enable data anonymization before analysis
+  --anonymize-columns SHEET:COLUMN [SHEET:COLUMN ...]
+                           Specific columns to anonymize (e.g., "Sheet1:B" or "Sheet1:Name")
+  --mapping-file PATH      Path for mapping dictionary file (default: auto-generated)
+  --mapping-format {json,excel}
+                           Format for mapping file (default: json)
+  --reverse MAPPING_FILE   Reverse anonymization using the specified mapping file
+  --anonymized-output PATH Output path for anonymized file (default: adds _anonymized)
 ```
 
 #### CLI Examples
@@ -311,6 +406,75 @@ python main.py --mode cli --file data.xlsx --config production.yaml --verbose
 
 # Batch processing with output directory
 python main.py --mode cli --file large_file.xlsx --output /path/to/reports --format json
+
+# Advanced feature combinations
+python main.py --mode cli --file data.xlsx --screenshots --anonymize --verbose --format html
+```
+
+### Advanced Features (🆕 v2.0)
+
+#### Excel Sheet Screenshots (Windows Only)
+Capture pixel-perfect screenshots of Excel sheets exactly as they appear when opened in Excel:
+
+**Features:**
+* Uses Windows COM automation via xlwings
+* Preserves exact formatting, colors, and visual appearance
+* No modification of original file content
+* Organized output with timestamped folders
+* Multiple capture modes: `used_range`, `full_sheet`, `print_area`
+
+**Usage:**
+```bash
+# Enable via CLI flag
+python main.py --mode cli --file data.xlsx --screenshots
+
+# Configure in config.yaml
+screenshot:
+  enabled: true
+  capture_mode: used_range
+  show_excel: false  # Set true for debugging
+  output_dir: output/screenshots
+  format: PNG
+  quality: 95
+
+# Test functionality
+python test_screenshot.py
+```
+
+**Output Structure:**
+```
+output/screenshots/
+└── filename_20240811_143052/
+    ├── Sheet1.png
+    ├── Dashboard.png
+    └── Summary.png
+```
+
+#### Data Anonymization
+Protect sensitive data while maintaining analysis accuracy through reversible data masking:
+
+**Features:**
+* Automatic detection of sensitive columns (names, emails, phones, SSNs)
+* Manual column specification for precise control
+* Reversible mapping with secure storage
+* Preserves data types and relationships for accurate analysis
+* Faker library integration for realistic replacement data
+
+**Usage:**
+```bash
+# Anonymize all detected sensitive data
+python main.py --mode cli --file sensitive.xlsx --anonymize
+
+# Target specific columns
+python main.py --mode cli --file data.xlsx --anonymize \
+  --anonymize-columns "Employees:Name" "Employees:Email" "Customers:Phone"
+
+# Custom mapping file location
+python main.py --mode cli --file data.xlsx --anonymize \
+  --mapping-file ./secure/mapping.json
+
+# Reverse anonymization when needed
+python main.py --mode cli --file anonymized.xlsx --reverse mapping.json
 ```
 
 ### Report Formats
@@ -383,6 +547,14 @@ security:
   enable_pattern_detection: true     # Enable sensitive data detection
   scan_for_pii: true                 # Scan for personally identifiable information
   security_threshold: 8.0            # Security score threshold
+
+screenshot:                           # NEW: Screenshot configuration
+  enabled: false                     # Enable/disable screenshot capture
+  show_excel: false                  # Show Excel window during capture (debugging)
+  capture_mode: used_range           # used_range | full_sheet | print_area
+  output_dir: output/screenshots     # Screenshots output directory
+  format: PNG                        # Image format (PNG, JPEG)
+  quality: 95                        # JPEG quality (1-100)
 ```
 
 ### Environment Variable Overrides
@@ -406,6 +578,11 @@ export EXCEL_EXPLORER_INCLUDE_RAW_DATA=false
 # Logging settings
 export EXCEL_EXPLORER_LOG_LEVEL=DEBUG
 export EXCEL_EXPLORER_LOG_TO_FILE=true
+
+# Screenshot settings (Windows only)
+export EXCEL_EXPLORER_SCREENSHOT_ENABLED=true
+export EXCEL_EXPLORER_SCREENSHOT_CAPTURE_MODE=full_sheet
+export EXCEL_EXPLORER_SCREENSHOT_SHOW_EXCEL=true
 ```
 
 ### Configuration Management

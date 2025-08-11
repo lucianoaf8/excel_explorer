@@ -9,6 +9,7 @@ from core.config import load_config
 from .structure import StructureAnalyzer
 from .data import DataAnalyzer
 from .formula import FormulaAnalyzer
+from .screenshot import ScreenshotAnalyzer
 
 
 class AnalyzerOrchestrator:
@@ -32,7 +33,8 @@ class AnalyzerOrchestrator:
         return {
             'structure': StructureAnalyzer(self.config),
             'data': DataAnalyzer(self.config),
-            'formula': FormulaAnalyzer(self.config)
+            'formula': FormulaAnalyzer(self.config),
+            'screenshot': ScreenshotAnalyzer(self.config)
         }
     
     def analyze_workbook(self, workbook: openpyxl.Workbook, 
