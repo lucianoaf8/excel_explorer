@@ -4,7 +4,7 @@ Report Adapter - Bridge between new AnalysisService results and existing ReportD
 
 from typing import Dict, Any
 from datetime import datetime
-from .report_base import ReportDataModel
+from reports.report_base import ReportDataModel
 
 
 class AnalysisResultsAdapter:
@@ -232,8 +232,8 @@ class ReportService:
             Path to generated report file
         """
         # Import generators here to avoid circular imports
-        from .report_generator import ReportGenerator
-        from .comprehensive_text_report import ComprehensiveTextReportGenerator
+        from reports.report_generator import ReportGenerator
+        from reports.comprehensive_text_report import ComprehensiveTextReportGenerator
         
         # Create report model
         report_model = self.create_report_model(analysis_results)

@@ -48,7 +48,7 @@ Examples:
                 parser.print_help()
                 return 1
             
-            from cli import run_cli_analysis
+            from cli.cli_runner import run_cli_analysis
             return run_cli_analysis(
                 file_path=args.file,
                 output_dir=args.output,
@@ -73,7 +73,7 @@ def _launch_gui():
     """Launch the GUI application"""
     try:
         import tkinter as tk
-        from gui import ExcelExplorerApp
+        from gui.excel_explorer_gui import ExcelExplorerApp
         
         root = tk.Tk()
         app = ExcelExplorerApp(root)

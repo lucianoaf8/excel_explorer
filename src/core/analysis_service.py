@@ -8,8 +8,8 @@ import time
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
 import openpyxl
-from .config import load_config
-from .analyzers.orchestrator import AnalyzerOrchestrator
+from core.config import load_config
+from core.analyzers.orchestrator import AnalyzerOrchestrator
 
 
 class AnalysisService:

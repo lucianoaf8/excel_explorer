@@ -5,7 +5,7 @@ Analyzer Orchestrator - Coordinates execution of all analyzer modules
 import time
 from typing import Dict, Any, List, Optional
 import openpyxl
-from ..config import load_config
+from core.config import load_config
 from .structure import StructureAnalyzer
 from .data import DataAnalyzer
 from .formula import FormulaAnalyzer

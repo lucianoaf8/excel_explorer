@@ -16,11 +16,11 @@ import webbrowser
 from typing import Dict, Any, Optional
 from PIL import Image, ImageTk
 
-from ..core import SimpleExcelAnalyzer
-from ..core.config import load_config
-from ..reports import ReportGenerator
-from ..reports.structured_text_report import StructuredTextReportGenerator
-from ..reports.comprehensive_text_report import ComprehensiveTextReportGenerator
+from core import SimpleExcelAnalyzer
+from core.config import load_config
+from reports import ReportGenerator
+from reports.structured_text_report import StructuredTextReportGenerator
+from reports.comprehensive_text_report import ComprehensiveTextReportGenerator
 
 
 class CircularProgress(tk.Canvas):

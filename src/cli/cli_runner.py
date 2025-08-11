@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
-from ..core.analysis_service import AnalysisService
-from ..reports.report_adapter import ReportService
+from core.analysis_service import AnalysisService
+from reports.report_adapter import ReportService
 
 
 class CLIProgressCallback:
