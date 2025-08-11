@@ -9,11 +9,8 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
-from ..core import SimpleExcelAnalyzer
-from ..core.config import load_config
-from ..reports import ReportGenerator
-from ..reports.structured_text_report import StructuredTextReportGenerator
-from ..reports.comprehensive_text_report import ComprehensiveTextReportGenerator
+from ..core.analysis_service import AnalysisService
+from ..reports.report_adapter import ReportService
 
 
 class CLIProgressCallback:
@@ -21,31 +18,20 @@ class CLIProgressCallback:
     
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
-        self.current_module = None
+        self.last_message = None
         
-    def __call__(self, module_name: str, status: str, detail: str = ""):
-        """Handle progress updates"""
-        if status == "starting":
-            self.current_module = module_name
-            module_display = module_name.replace('_', ' ').title()
+    def __call__(self, message: str, progress: float):
+        """Handle progress updates from AnalysisService"""
+        # Only show different messages to avoid spam
+        if message != self.last_message:
             if self.verbose:
-                print(f"Analyzing {module_display}: {detail}")
-            else:
-                print(f"Analyzing {module_display}...", end=' ', flush=True)
-                
-        elif status == "complete":
-            if not self.verbose:
-                print("DONE")
-            else:
-                print(f"Completed {module_name.replace('_', ' ').title()}")
-                
-        elif status == "error":
-            if not self.verbose:
-                print("ERROR")
-            print(f"Error in {module_name}: {detail}")
+                print(f"[{progress*100:.0f}%] {message}")
+            elif "complete" in message.lower() or progress >= 1.0:
+                print(f"✓ {message}")
+            elif progress == 0.0 or "starting" in message.lower():
+                print(f"→ {message}")
             
-        elif status == "step" and self.verbose:
-            print(f"  ↳ {detail}")
+            self.last_message = message
 
 
 def run_cli_analysis(
@@ -88,13 +74,14 @@ def run_cli_analysis(
         
         output_dir.mkdir(exist_ok=True)
         
-        # Initialize configuration
-        config = load_config(config_path)
+        # Initialize analysis service
+        analysis_service = AnalysisService(config_path)
         
         if verbose:
             print(f"Configuration loaded from: {config_path}")
             print(f"Output directory: {output_dir.absolute()}")
             print(f"Report format: {format_type}")
+            print(f"Available modules: {analysis_service.get_available_modules()}")
             print(f"Analyzing: {input_file.name}\n")
         else:
             print(f"Analyzing: {input_file.name}")
@@ -102,42 +89,45 @@ def run_cli_analysis(
         # Setup progress callback
         progress_callback = CLIProgressCallback(verbose)
         
-        # Initialize analyzer
-        analyzer = SimpleExcelAnalyzer(config_path)
+        # Validate file first
+        validation = analysis_service.validate_file(str(input_file))
+        if not validation['is_valid']:
+            print(f"File validation failed:")
+            for error in validation['errors']:
+                print(f"  Error: {error}")
+            for warning in validation['warnings']:
+                print(f"  Warning: {warning}")
+            return 1
+        
+        # Show warnings if any
+        if validation['warnings'] and verbose:
+            for warning in validation['warnings']:
+                print(f"  Warning: {warning}")
         
         # Run analysis
         start_time = datetime.now()
-        results = analyzer.analyze(str(input_file), progress_callback=progress_callback)
+        results = analysis_service.analyze_file(str(input_file), progress_callback=progress_callback)
         analysis_time = (datetime.now() - start_time).total_seconds()
         
         # Generate timestamp for output files
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_name = f"{input_file.stem}_{timestamp}"
         
-        # Generate report based on format
-        if format_type == 'html':
-            output_file = output_dir / f"{base_name}.html"
-            generator = ReportGenerator()
-            generator.generate_html_report(results, str(output_file))
-            
-        elif format_type == 'json':
-            output_file = output_dir / f"{base_name}.json"
-            generator = ReportGenerator()
-            generator.generate_json_report(results, str(output_file))
-            
-        elif format_type in ['text', 'markdown']:
-            ext = 'md' if format_type == 'markdown' else 'txt'
-            output_file = output_dir / f"{base_name}.{ext}"
-            generator = ComprehensiveTextReportGenerator()
-            if format_type == 'markdown':
-                final_output = generator.generate_markdown_report(results, str(output_file))
-            else:
-                final_output = generator.generate_text_report(results, str(output_file))
-            # Generator writes directly to file, so update output_file variable
-            output_file = Path(final_output)
-        
-        else:
+        # Determine output file extension
+        ext_map = {'html': 'html', 'json': 'json', 'text': 'txt', 'markdown': 'md'}
+        if format_type not in ext_map:
             print(f"Error: Unsupported format type: {format_type}")
+            return 1
+        
+        output_file = output_dir / f"{base_name}.{ext_map[format_type]}"
+        
+        # Generate report using ReportService
+        report_service = ReportService()
+        try:
+            final_output_path = report_service.generate_report(results, format_type, str(output_file))
+            output_file = Path(final_output_path)
+        except Exception as e:
+            print(f"Error generating report: {e}")
             return 1
         
         # Success summary
