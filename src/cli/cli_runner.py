@@ -9,10 +9,11 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
-from core import ConfigManager, SimpleExcelAnalyzer
-from reports import ReportGenerator
-from reports.structured_text_report import StructuredTextReportGenerator
-from reports.comprehensive_text_report import ComprehensiveTextReportGenerator
+from ..core import SimpleExcelAnalyzer
+from ..core.config import load_config
+from ..reports import ReportGenerator
+from ..reports.structured_text_report import StructuredTextReportGenerator
+from ..reports.comprehensive_text_report import ComprehensiveTextReportGenerator
 
 
 class CLIProgressCallback:
@@ -88,8 +89,7 @@ def run_cli_analysis(
         output_dir.mkdir(exist_ok=True)
         
         # Initialize configuration
-        config_manager = ConfigManager()
-        config = config_manager.load_config(config_path)
+        config = load_config(config_path)
         
         if verbose:
             print(f"Configuration loaded from: {config_path}")

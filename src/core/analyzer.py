@@ -23,7 +23,7 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 
-from .config_manager import ConfigManager
+from .config import load_config, get_config_value
 
 
 class SimpleExcelAnalyzer:
@@ -31,8 +31,7 @@ class SimpleExcelAnalyzer:
     
     def __init__(self, config_path: str = "config.yaml"):
         self.progress_callback: Optional[Callable] = None
-        self.config_manager = ConfigManager()
-        self.config: Dict[str, Any] = self.config_manager.load_config(config_path)
+        self.config: Dict[str, Any] = load_config(config_path)
         self.analysis_logger = self._setup_logger()
     
     def _setup_logger(self) -> logging.Logger:
