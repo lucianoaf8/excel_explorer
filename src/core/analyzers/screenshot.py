@@ -204,7 +204,7 @@ class ScreenshotAnalyzer(BaseAnalyzer):
         # Default to used range
         return used_range
     
-    def _get_image_from_clipboard(self) -> Optional[Image.Image]:
+    def _get_image_from_clipboard(self) -> Optional['Image.Image']:
         """
         Retrieve image from Windows clipboard
         
@@ -225,7 +225,7 @@ class ScreenshotAnalyzer(BaseAnalyzer):
             print(f"Failed to get image from clipboard: {e}")
             return None
     
-    def _dib_to_image(self, dib_data) -> Image.Image:
+    def _dib_to_image(self, dib_data) -> 'Image.Image':
         """
         Convert DIB (Device Independent Bitmap) data to PIL Image
         

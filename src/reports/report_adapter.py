@@ -222,39 +222,42 @@ class ReportService:
     def generate_report(self, analysis_results: Dict[str, Any], format_type: str, output_path: str) -> str:
         """
         Generate a report in the specified format
-        
+
         Args:
             analysis_results: Results from AnalysisService.analyze_file()
             format_type: Report format (html, json, text, markdown)
             output_path: Path for output file
-            
+
         Returns:
             Path to generated report file
         """
         # Import generators here to avoid circular imports
         from reports.report_generator import ReportGenerator
         from reports.comprehensive_text_report import ComprehensiveTextReportGenerator
-        
-        # Create report model
+
+        # Adapt results to expected format
+        adapted_results = self.adapter.adapt_results(analysis_results)
+
+        # Create report model for standardized data
         report_model = self.create_report_model(analysis_results)
         standardized_data = report_model.get_standardized_data()
-        
+
         if format_type == 'html':
             generator = ReportGenerator()
             generator.generate_html_report(analysis_results, output_path)  # Use original results for HTML
             return output_path
-            
+
         elif format_type == 'json':
             generator = ReportGenerator()
             generator.generate_json_report(standardized_data, output_path)
             return output_path
-            
+
         elif format_type in ['text', 'markdown']:
             generator = ComprehensiveTextReportGenerator()
             if format_type == 'markdown':
-                return generator.generate_markdown_report(analysis_results, output_path)
+                return generator.generate_markdown_report(adapted_results, output_path)
             else:
-                return generator.generate_text_report(analysis_results, output_path)
-        
+                return generator.generate_text_report(adapted_results, output_path)
+
         else:
             raise ValueError(f"Unsupported format type: {format_type}")

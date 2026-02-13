@@ -38,7 +38,7 @@ def run_cli_analysis(
     file_path: str,
     output_dir: Optional[str] = None,
     format_type: str = 'html',
-    config_path: str = 'config.yaml',
+    config_path: str = 'config/config.yaml',
     verbose: bool = False,
     enable_screenshots: bool = False,
     # Anonymizer parameters

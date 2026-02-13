@@ -37,6 +37,30 @@ python main.py --mode cli --file data.xlsx --screenshots
 python main.py --mode cli --file data.xlsx --screenshots --verbose
 ```
 
+### Batch Processing (New in v2.1)
+```bash
+# Analyze all files in a directory
+python batch_analyze.py --directory C:\Data\Reports
+
+# Analyze specific files
+python batch_analyze.py --files file1.xlsx file2.xlsx file3.xlsx
+
+# Using glob patterns
+python batch_analyze.py --files "C:\Data\*.xlsx"
+
+# With custom output and format
+python batch_analyze.py --directory C:\Data --output C:\Reports --format json
+
+# With screenshots and verbose output
+python batch_analyze.py --directory C:\Data --screenshots --verbose
+
+# ComplyWorks reports quick start (Windows)
+.\analyze_cw_reports.ps1   # PowerShell
+analyze_cw_reports.bat     # Command Prompt
+```
+
+See `BATCH_PROCESSING.md` for complete batch processing documentation.
+
 ### Testing
 ```bash
 # Run integration tests

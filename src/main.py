@@ -43,8 +43,8 @@ Examples:
                        help='Output directory (default: ./reports)')
     parser.add_argument('--format', choices=['html', 'json', 'text', 'markdown'], 
                        default='html', help='Report format (default: html)')
-    parser.add_argument('--config', type=str, default='config.yaml', 
-                       help='Configuration file path (default: config.yaml)')
+    parser.add_argument('--config', type=str, default='config/config.yaml',
+                       help='Configuration file path (default: config/config.yaml)')
     parser.add_argument('--verbose', '-v', action='store_true', 
                        help='Enable verbose output')
     parser.add_argument('--screenshots', action='store_true',
